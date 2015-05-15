@@ -1,9 +1,31 @@
 local at    = require "gsmmodem.at"
+local utils = require "gsmmodem.utils"
+local Error = require "gsmmodem.error".error
 local uv    = require "lluv"
 local ut    = require "lluv.utils"
 local tpdu  = require "tpdu"
 local date  = require "date"
 uv.rs232    = require "lluv.rs232"
+
+local function dummy()end
+
+local function is_callable(f) return (type(f) == 'function') and f end
+
+local unpack = unpack or table.unpack
+
+local pack_args = function(...)
+  local n    = select("#", ...)
+  local args = {...}
+  local cb   = args[n]
+  if is_callable(cb) then
+    args[n] = nil
+    n = n - 1
+  else
+    cb = dummy
+  end
+
+  return cb, unpack(args, 1, n)
+end
 
 local function ts2date(d)
   local tz  = math.abs(d.tz)
@@ -55,7 +77,13 @@ local URC_TYPS_INVERT = {}
 for k, v in pairs(URC_TYPS) do URC_TYPS_INVERT[v] = k end
 
 function GsmModem:__init(...)
-  local device  = uv.rs232(...)
+  local device
+  if type(...) == 'string' then
+    device  = uv.rs232(...)
+  else
+    device = ...
+  end
+
   local stream  = at.Stream(self)
   local command = at.Commander(stream)
 
@@ -88,6 +116,7 @@ function GsmModem:__init(...)
   self._cmd_timer = cmdTimeout
   self._snd_timer = cmdSendTimer
   self._urc       = {}
+  self._reference = 0
 
   stream:on_message(function(this, typ, msg, info)
     local fn = self._urc['*']
@@ -178,6 +207,16 @@ function GsmModem:open(cb)
   end)
 end
 
+function GsmModem:close(cb)
+  if self._device then
+    self._stream:reset()
+    self._cmd_timer:close()
+    self._snd_timer:close()
+    self._device:close(cb)
+    self._device = nil
+  end
+end
+
 function GsmModem:on_boot(handler)
   self._on_boot = handler
 end
@@ -229,6 +268,51 @@ function GsmModem:on_call(handler)
   return true
 end
 
+function GsmModem:next_reference()
+  self._reference = (self._reference + 1) % 0xFFFF
+  if self._reference == 0 then self._reference = 1 end
+  return self._reference
+end
+
+function GsmModem:send_sms(...)
+  local cb, number, text, opt = pack_args(...)
+  text = text or ''
+  local pdus = utils.EncodeSmsSubmit(number, text, {
+    reference           = self:next_reference();
+    requestStatusReport = true;
+    validity            = opt and opt.validity;
+    smsc                = opt and opt.smsc;
+    rejectDuplicates    = opt and opt.rejectDuplicates;
+    replayPath          = opt and opt.replayPath;
+    flash               = opt and opt.flash;
+  })
+  local cmd  = self:cmd()
+
+
+  local count, res, send_err = #pdus
+
+  for i, pdu in ipairs(pdus) do
+    cmd:CMGS(pdu[2], pdu[1], function(self, err, ref)
+      if #pdus == 1 then
+        if err then return cb(self, err) end
+
+        return cb(self, nil, ref)
+      end
+
+      if err then send_err = err end
+      res = res or {}
+      res[i] = err or ref
+
+      count = count - 1
+      if count == 0 then
+        return cb(self, send_err, res)
+      end
+    end)
+  end
+
+  return self
+end
+
 end
 ---------------------------------------------------------------
 
@@ -246,6 +330,19 @@ function SMSMessage:__init(address, text, flash)
   self._text   = text
   if flash then self._class = 1 end
   return self
+end
+
+local function find_udh(udh, ...)
+  if not udh then return end
+
+  for i = 1, select('#', ...) do
+    local iei = select(i, ...)
+    for j = 1, #udh do
+      if udh[j].iei == iei then
+        return udh[j]
+      end
+    end
+  end
 end
 
 function SMSMessage:decode_pdu(pdu, state)
@@ -288,6 +385,13 @@ function SMSMessage:decode_pdu(pdu, state)
   self._location          = nil                 -- For saved SMS: location of SMS in memory.
   self._state             = nil                 -- Status (read/unread/...) of SMS message.
 
+  local concatUdh = find_udh(pdu.udh, 0x00, 0x80)
+  if concatUdh and concatUdh.cnt > 1 then
+    self._concat_number    = concatUdh.no
+    self._concat_reference = concatUdh.ref
+    self._concat_count     = concatUdh.cnt
+  end
+
   return self
 end
 
@@ -325,12 +429,12 @@ function SMSMessage:pdu()
     pdu.vp = vp
   end
 
-  if self._text then
-    pdu.ud = self._text
+  if self._reference then
+    pdu.mr = self._reference % 0xFF
   end
 
-  if self._reference then
-    pdu.mr = self._reference
+  if self._text then
+    pdu.ud = self._text
   end
 
   return tpdu.Encode(pdu)

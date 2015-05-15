@@ -1,8 +1,95 @@
 local uv     = require "lluv"
 local ut     = require "lluv.utils"
 local Error  = require "gsmmodem.error".error
+local lpeg   = require "lpeg"
 local ok, pp = pcall(require, "pp")
 if not ok then pp = print end
+
+local unpack = unpack or table.unpack
+
+local function lpeg_match(str, pat)
+  local t, pos = pat:match(str)
+  if pos ~= nil then str = str:sub(pos) end
+  return t, str
+end
+
+local split do
+  local function MakeCsvGramma(sep, quot)
+    assert(#sep == 1 and #quot == 1)
+    local P, C, Cs, Ct, Cp = lpeg.P, lpeg.C, lpeg.Cs, lpeg.Ct, lpeg.Cp
+    local nl, sp   = P('\n'), P(' ')^0
+    local any, eos = P(1), P(-1)
+
+    local nonescaped = C((any - (nl + P(quot) + P(sep) + eos))^0)
+    local escaped = 
+      sp * P(quot) *
+        Cs(
+          ((any - P(quot)) + (P(quot) * P(quot)) / quot)^0
+        ) *
+      P(quot) * sp
+
+    local field      = escaped + nonescaped
+    local record     = Ct(field * ( P(sep) * field )^0) * (nl + eos) * Cp()
+    return record
+  end
+
+  local pat = MakeCsvGramma(',', '"')
+  split = function(str)
+    return lpeg_match(str, pat)
+  end
+end
+
+local split_list, decode_list do
+  local function MakeListGramma(sep)
+    assert(#sep == 1)
+    local P, C, Cs, Ct, Cp = lpeg.P, lpeg.C, lpeg.Cs, lpeg.Ct, lpeg.Cp
+    local nl, sp   = P('\n'), P(' ')^0
+    local any, eos = P(1), P(-1)
+    local quot = P('(') + P(')')
+
+    local nonescaped = sp * C(
+      (any - (quot + P(sep) + nl - eos))^0
+    ) * sp
+    local escaped =  sp * P('(') * Cs((any - quot)^0) * P(')') * sp
+
+    local field      = escaped + nonescaped
+    local record     = Ct(field * ( P(sep) * field )^0) * (nl + eos) * Cp()
+    return record
+  end
+
+  local pat = MakeListGramma(',')
+  split_list = function(str)
+    return lpeg_match(str, pat)
+  end
+
+  local function decode_range(res, t)
+    local a, b = ut.split_first(t, '-', true)
+    if b and tonumber(a) and tonumber(b) then
+      for i = tonumber(a), tonumber(b) do res[#res+1] = i end
+    else
+      res[#res + 1] = tonumber(t) or t
+    end
+    return res
+  end
+
+  local function decode_elem(t)
+    local res = {}
+    t = split(t)
+    for i = 1, #t do
+      decode_range(res, t[i])
+    end
+    if #res == 1 then res = res[1] end
+    return res
+  end
+
+  decode_list = function(t)
+    t = split_list(t)
+    for i = 1, #t do
+      t[i] = decode_elem(t[i])
+    end
+    return t
+  end
+end
 
 local t = {
   RING            = "Ringing",
@@ -56,6 +143,24 @@ local unquot = function(data)
   return (trim(data):match('^"?(.-)"?$'))
 end
 
+local function dummy()end
+
+local function is_callable(f) return (type(f) == 'function') and f end
+
+local pack_args = function(...)
+  local n    = select("#", ...)
+  local args = {...}
+  local cb   = args[n]
+  if is_callable(cb) then
+    args[n] = nil
+    n = n - 1
+  else
+    cb = dummy
+  end
+
+  return cb, unpack(args, 1, n)
+end
+
 local UD_I      = 0
 local CMD_I     = 1
 local TIMEOUT_I = 2
@@ -69,7 +174,7 @@ function ATStream:__init(_self)
   self._self           = _self or self
   self._eol            = '\r\n'
   self._active_queue   = ut.Queue.new()
-  self._command_queue  = ut.Queue.new()
+  self._command_queue  = ut.List.new()
   self._buffer         = ut.Buffer.new(self._eol)
 
   -- we can get final response (OK/ERROR) only after empty line
@@ -147,7 +252,7 @@ end
 function ATStream:execute()
   while true do
     local line = self:_read_line() or self:_read_prompt()
-    if not line then return end
+    if not line then break end
 
     if #line > 0 then
       if self._state == 'async_info' then
@@ -192,19 +297,12 @@ function ATStream:execute()
 
     self._has_empty_line = (#line == 0)
   end
+
+  return self
 end
 
-function ATStream:command(cmd, timeout, cb)
-  if timeout and not cb then
-    if type(timeout) == 'function' then
-      cb, timeout = timeout
-    end
-  end
-
-  if cmd then
-    local t = {cmd, timeout, cb}
-    self._command_queue:push(t)
-  end
+function ATStream:_command(push, t)
+  if t then push(self._command_queue, t) end
 
   if self._on_delay then
     return self:_on_delay()
@@ -213,32 +311,39 @@ function ATStream:command(cmd, timeout, cb)
   return self:next_command()
 end
 
-function ATStream:command_ex(cmd, timeout1, prompt, timeout2, data, cb)
+function ATStream:command(...)
+  local cb, cmd, timeout = pack_args(...)
+
+  local t = cmd and {cmd, timeout, cb}
+
+  return self:_command(
+    self._command_queue.push_back, t
+  )
+end
+
+function ATStream:command_ex(...)
+  local cb, cmd, timeout1, prompt, timeout2, data = pack_args(...)
+
   if timeout1 and type(timeout1) ~= 'number' then
-    timeout1, prompt, timeout2, data, cb = nil, timeout1, prompt, timeout2, data
+    timeout1, prompt, timeout2, data = nil, timeout1, prompt, timeout2
   end
 
   if timeout2 and type(timeout2) ~= 'number' then
-    timeout2, data, cb = nil, timeout2, data
+    timeout2, data = nil, timeout2
   end
 
-  if cmd then
-    local t = {cmd, timeout1, cb,
-      [UD_I] = {prompt, data, timeout2}
-    }
-    self._command_queue:push(t)
-  end
+  local t = cmd and {cmd, timeout1, cb,
+    [UD_I] = {prompt, data, timeout2}
+  }
 
-  if self._on_delay then
-    return self:_on_delay()
-  end
-
-  return self:next_command()
+  return self:_command(
+    self._command_queue.push_back, t
+  )
 end
 
 function ATStream:next_command()
   if self._active_queue:size() == 0 then
-    local t = self._command_queue:pop()
+    local t = self._command_queue:pop_front()
     if t then
       self:_on_command(t[CMD_I] .. self._eol, t[TIMEOUT_I])
       self._active_queue:push(t)
@@ -254,7 +359,7 @@ function ATStream:reset(err)
   end
 
   while true do
-    local task = self._command_queue:pop()
+    local task = self._command_queue:pop_front()
     if not task then break end
     task[CB_I](self._self, err, task[CMD_I])
   end
@@ -299,6 +404,13 @@ end
 ---------------------------------------------------------------
 local ATCommander = ut.class() do
 
+local MESSAGE_STATUS = {
+  ['REC UNREAD'] = 0,
+  ['REC READ']   = 1,
+  ['STO UNSENT'] = 2,
+  ['STO SENT']   = 3,
+}
+
 local E = Error
 
 function ATCommander:__init(stream)
@@ -314,12 +426,8 @@ local function remove_echo(res)
   return res
 end
 
-function ATCommander:_basic_cmd(cmd, timeout, cb)
-  if timeout and not cb then
-    if type(timeout) == 'function' then
-      cb, timeout = timeout
-    end
-  end
+function ATCommander:_basic_cmd(...)
+  local cb, cmd, timeout = pack_args(...)
 
   self._stream:command(cmd, timeout, function(this, err, cmd, res, status, info)
     if err then return cb(this, err) end
@@ -329,15 +437,19 @@ function ATCommander:_basic_cmd(cmd, timeout, cb)
 
     cb(this, nil, #res == 0 and status or res)
   end)
+
+  return true
 end
 
-function ATCommander:_basic_cmd_ex(cmd, timeout1, prompt, timeout2, data, cb)
+function ATCommander:_basic_cmd_ex(...)
+  local cb, cmd, timeout1, prompt, timeout2, data = pack_args(...)
+
   if timeout1 and type(timeout1) ~= 'number' then
-    timeout1, prompt, timeout2, data, cb = nil, timeout1, prompt, timeout2, data
+    timeout1, prompt, timeout2, data = nil, timeout1, prompt, timeout2
   end
 
   if timeout2 and type(timeout2) ~= 'number' then
-    timeout2, data, cb = nil, timeout2, data
+    timeout2, data = nil, timeout2
   end
 
   self._stream:command_ex(cmd, timeout1, prompt, timeout2, data, function(this, err, cmd, res, status, info)
@@ -347,6 +459,8 @@ function ATCommander:_basic_cmd_ex(cmd, timeout1, prompt, timeout2, data, cb)
 
     cb(this, nil, #res == 0 and status or res)
   end)
+
+  return true
 end
 
 function ATCommander:ATZ(cb)
@@ -354,18 +468,19 @@ function ATCommander:ATZ(cb)
 end
 
 function ATCommander:OperatorName(cb)
+  cb = cb or dummy
   return self:_basic_cmd('AT+COPS?', function(this, err, info)
     if err then return cb(this, err, info) end
 
     local str = info:match("^%+COPS: (.+)$")
     if not str then return cb(this, E('EPROTO', nil, res)) end
 
-    str = ut.split(str, ',',  true)[3]
+    str = split(str)
+    str = str and str[3]
 
     -- SIM is not init
     if not str then return cb(this, nil, nil) end
 
-    str = unquot(str)
     cb(this, nil, str)
   end)
 end
@@ -400,6 +515,7 @@ function ATCommander:ErrorMode(mode, cb)
 end
 
 function ATCommander:SimReady(cb)
+  cb = cb or dummy
   return self:_basic_cmd('AT+CPIN?', function(this, err, info)
     if err then return cb(this, err, info) end
 
@@ -408,7 +524,8 @@ function ATCommander:SimReady(cb)
   end)
 end
 
-function ATCommander:CNMI(mode, mt, bm, ds, bfr, cb)
+function ATCommander:CNMI(...)
+  local cb, mode, mt, bm, ds, bfr = pack_args(...)
   local cmd = string.format("AT+CNMI=%d,%d,%d,%d,%d", mode or 0, mt or 0, bm or 0, ds or 0, bfr or 0)
   return self:_basic_cmd(cmd, cb)
 end
@@ -427,26 +544,50 @@ end
 
 -- Read SMS
 function ATCommander:CMGR(i, cb)
--- stat
---  0 - received unread
---  1 - received read
---  2 - stored unsent
---  3 - stored sent
--- alpha
---  Name from phone book
--- len
---   PDU length in chars (without SMSC)
+  -- stat
+  --  0 - received unread
+  --  1 - received read
+  --  2 - stored unsent
+  --  3 - stored sent
+  -- alpha
+  --  Name from phone book
+  -- len
+  --   PDU length in chars (without SMSC)
   local cmd = string.format("AT+CMGR=%d", i)
   return self:_basic_cmd(cmd, function(this, err, info)
     if err then return cb(this, err, info) end
 
     -- no SMS
     if info == 'OK' then return cb(this, nil, nil) end
+    local data, pdu = info:match("^%+CMGR:%s*(.-)%s-\n(.-)\r?\n?$")
+    if not data then return cb(this, E('EPROTO', nil, info)) end
 
-    local stat, alpha, len, pdu = info:match("^%+CMGR:%s*(%d+),(.-),(%d+)%s-\n([^\n]+)$")
+    data = split(data)
+    if not data then return cb(this, E('EPROTO', nil, info)) end
 
-    -- no PDU mode
-    if not stat then return cb(this, nil, info) end
+    -- Text mode
+    if MESSAGE_STATUS[ data[1] ] then
+      --! @todo decode Text mode sms
+      -- message_status,address,[address_text],service_center_time_stamp[,address_type,TPDU_first_octet,protocol_identifier,data_coding_scheme,service_center_address,service_center_address_type,sms_message_body_length]<CR><LF>sms_message_body
+
+      local stat, address, scts = data[1], data[2]
+      if stat:sub(1, 3) == 'REC' then
+        if #data <= 3 then scts = data[3] else scts = data[4] end
+      end
+
+      return cb(this, nil, pdu, stat, address, scts)
+    end
+
+    -- PDU Mode
+    local index, stat, alpha, len
+    if #data >= 4 then index, stat, alpha, len = unpack(data)
+    elseif #data == 3 then stat, alpha, len = unpack(data)
+    elseif #data == 2 then stat, len = unpack(data)
+    elseif #data == 1 then len = unpack(data) end
+
+    if (not tonumber(len)) or (stat and not tonumber(stat)) then
+      return cb(this, E('EPROTO', nil, info))
+    end
 
     stat, len = tonumber(stat), tonumber(len)
 
@@ -462,40 +603,51 @@ end
 
 -- Send SMS
 function ATCommander:CMGS(len, pdu, cb)
-  local cmd = string.format("AT+CMGS=%d", len)
+  local cmd
+  if type(len) == 'number' then -- PDU mode
+    cmd = string.format("AT+CMGS=%d", len)
+  else -- Text mode
+    cmd = string.format('AT+CMGS="%s"', len)
+  end
+  cb = cb or dummy
   return self:_basic_cmd_ex(cmd, '>', pdu .. '\26', function(this, err, info)
     if err then return cb(this, err, info) end
 
-    local ref, status_pdu = info:match("%+CMGS:%s*(%d+),?(.-)$")
-    ref = tonumber(ref)
+    -- Text mode: message_reference[,service_center_time_stamp]
+    -- PDU  mode: message_reference[,SMS-SUBMIT-REPORT_TPDU]
+
+    local data = info:match("%+CMGS:%s*(.-)%s-$")
+    if not data then return cb(this, E('EPROTO', nil, info)) end
+
+    data = split(data)
+    if not data then return cb(this, E('EPROTO', nil, info)) end
+
+    ref = tonumber(data[1])
     if not ref then return cb(this, E('EPROTO', nil, info)) end
 
-    if #status_pdu == 0 then status_pdu = nil
-    else status_pdu = unquot(status_pdu) end
-
-    cb(this, nil, ref, status_pdu)
+    cb(this, nil, ref, data[2])
   end)
 end
 
-function ATCommander:raw(...)
-  return self:_basic_cmd(...)
-end
-
+-- Send USSD request
 function ATCommander:USSD(cmd, cb)
   local cmd = string.format('AT+CUSD=1,"%s",15', cmd)
+  cb = cb or dummy
   return self:_basic_cmd(cmd, function(this, err, info)
     if err then return cb(this, err, info) end
 
     local msg = info:match("%+CUSD:%s*(.-)%s*$")
     if not msg then return cb(this, E('EPROTO', nil, info)) end
 
-    local ref, msg, dcs = ut.usplit(msg, ',', true)
-    if msg then msg = unquot(msg) end
-    ref   = tonumber(ref)
-    codec = tonumber(codec)
+    local ref, msg, dcs = usplit(msg)
+    ref, codec = tonumber(ref), tonumber(dcs)
 
-    cb(this, nil, ref, msg, codec)
+    cb(this, nil, ref, msg, dcs)
   end)
+end
+
+function ATCommander:raw(...)
+  return self:_basic_cmd(...)
 end
 
 function ATCommander:on_urc(fn)
