@@ -100,9 +100,10 @@ local t = {
 }
 
 local function is_async_msg(line)
-  if t[line] then return line, t[line] end
+  local info = t[line]
+  if info then return line, info end
 
-  local info = line:match('^%+CLIP:%s*(.-)%s*$')
+  info = line:match('^%+CLIP:%s*(.-)%s*$')
   if info then return "+CLIP", info end
 
   info = line:match('^%+CMT:%s*(.-)%s*$')
@@ -126,13 +127,14 @@ local t = {
 }
 
 local function is_final_msg(line)
-  if t[line] then return line, t[line] end
+  local info = t[line]
+  if info then return line, info end
 
-  local err = line:match('^%+CME ERROR:%s*(.-)%s*$')
-  if err then return "+CME ERROR", err end
+  info = line:match('^%+CME ERROR:%s*(.-)%s*$')
+  if info then return "+CME ERROR", info end
 
-  local err = line:match('^%+CMS ERROR:%s*(.-)%s*$')
-  if err then return "+CMS ERROR", err end
+  info = line:match('^%+CMS ERROR:%s*(.-)%s*$')
+  if info then return "+CMS ERROR", err end
 end
 
 local trim = function(data)
@@ -630,8 +632,15 @@ function ATCommander:CMGS(len, pdu, cb)
 end
 
 -- Send USSD request
-function ATCommander:USSD(cmd, cb)
-  local cmd = string.format('AT+CUSD=1,"%s",15', cmd)
+function ATCommander:CUSD(...)
+  local cb, n, cmd, codec = pack_args(...)
+  if type(n) == 'string' then
+    n, cmd, codec = 1, n, cmd
+  elseif type(n) == 'boolen' then
+    n = n and 1 or 0
+  elseif n == nil then n = 1 end
+
+  cmd = string.format('AT+CUSD=%d,"%s",%d', n, cmd, codc or 15)
   cb = cb or dummy
   return self:_basic_cmd(cmd, function(this, err, info)
     if err then return cb(this, err, info) end
@@ -639,15 +648,25 @@ function ATCommander:USSD(cmd, cb)
     local msg = info:match("%+CUSD:%s*(.-)%s*$")
     if not msg then return cb(this, E('EPROTO', nil, info)) end
 
-    local ref, msg, dcs = usplit(msg)
-    ref, codec = tonumber(ref), tonumber(dcs)
+    local data = split(msg)
+    if not data then return cb(this, E('EPROTO', nil, info)) end
 
-    cb(this, nil, ref, msg, dcs)
+    local m, msg, dcs = unpack(data)
+    m, dcs = tonumber(m), tonumber(dcs)
+
+    cb(this, nil, m, msg, dcs)
   end)
 end
 
 function ATCommander:raw(...)
   return self:_basic_cmd(...)
+end
+
+function ATCommander:at(...)
+  local cb, cmd, timeout = pack_args(...)
+  cmd = 'AT' .. (cmd or '')
+
+  return self:_basic_cmd(cmd, timeout, cb)
 end
 
 function ATCommander:on_urc(fn)

@@ -172,6 +172,11 @@ function GsmModem:configure(cb)
       if err then return cb(this, err, 'CLIP', data) end
       next_fn()
     end) end;
+
+    function() command:at('+CSCS="IRA"', function(this, err, data)
+      if err then return cb(this, err, 'CSCS', data) end
+      next_fn()
+    end) end;
   }
 
   next_fn()
@@ -288,7 +293,6 @@ function GsmModem:send_sms(...)
   })
   local cmd  = self:cmd()
 
-
   local count, res, send_err = #pdus
 
   for i, pdu in ipairs(pdus) do
@@ -311,6 +315,10 @@ function GsmModem:send_sms(...)
   end
 
   return self
+end
+
+function GsmModem:send_ussd(...)
+  return self:cmd():CUSD(...)
 end
 
 end
@@ -494,6 +502,15 @@ function SMSMessage:delivery_status()
   if not state then return end
 
   return state.success, state
+end
+
+function SMSMessage:flash()
+  return self._class == 1
+end
+
+function SMSMessage:set_flash(v)
+  if v then self._class = 1 else self._class = nil end
+  return self
 end
 
 end
