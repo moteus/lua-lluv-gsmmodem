@@ -62,6 +62,7 @@ local function ocall(fn, ...)
 end
 
 local DEFAULT_COMMAND_TIMEOUT = 60000
+local DEFAULT_COMMAND_DELAY   = 200
 
 ---------------------------------------------------------------
 local GsmModem = ut.class() do
@@ -94,7 +95,7 @@ function GsmModem:__init(...)
 
   -- Посылать команды не чаще чем ...
   -- Некоторые модемы могут вести себя неадекватно если посылать команды слишком быстро
-  local cmdSendTimer = uv.timer():start(0, 200, function(timer)
+  local cmdSendTimer = uv.timer():start(0, DEFAULT_COMMAND_DELAY, function(timer)
     timer:stop()
     stream:next_command()
   end):stop()
@@ -220,6 +221,13 @@ function GsmModem:close(cb)
     self._device:close(cb)
     self._device = nil
   end
+end
+
+function GsmModem:set_delay(ms)
+  ms = ms or DEFAULT_COMMAND_DELAY
+  if ms <= 1 then ms = 1 end
+  self._snd_timer:set_repeat(ms)
+  return self
 end
 
 function GsmModem:on_boot(handler)
