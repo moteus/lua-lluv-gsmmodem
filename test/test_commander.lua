@@ -3,9 +3,13 @@ package.path = "..\\src\\lua\\?.lua;" .. package.path
 -- pcall(require, "luacov")
 
 local ut        = require "lluv.utils"
-local at        = require "gsmmodem.at"
+local at        = require "lluv.gsmmodem.at"
 local utils     = require "utils"
 local TEST_CASE = require "lunit".TEST_CASE
+
+local split_args  = require "lluv.gsmmodem.utils".split_args
+local split_list  = require "lluv.gsmmodem.utils".split_list
+local decode_list = require "lluv.gsmmodem.utils".decode_list
 
 local pcall, error, type, table, ipairs, print, tonumber = pcall, error, type, table, ipairs, print, tonumber
 local RUN = utils.RUN
@@ -276,6 +280,77 @@ end)
 end
 
 end
+
+end
+
+local _ENV = TEST_CASE'split args/list' if ENABLE then
+
+local it = IT(_ENV or _M)
+
+it('split_args',function()
+  local t = assert_table(split_args('1, "hello", 2,," aaa ",'))
+  assert_equal('1'    , t[1])
+  assert_equal('hello', t[2])
+  assert_equal(' 2'   , t[3])
+  assert_equal(''     , t[4])
+  assert_equal(' aaa ', t[5])
+  assert_equal(''     , t[6])
+  assert_nil  (t[7])
+end)
+
+it('decode_list',function()
+  local lst = '("SM","BM","SR"),("SM"),(SM),(0-1,2,3),(0,1-3),(0-3),(0,1),(0,1),(3),4'
+  local t = assert_table(decode_list(lst))
+  do local t = assert_table(t[1])
+    assert_equal('SM', t[1])
+    assert_equal('BM', t[2])
+    assert_equal('SR', t[3])
+    assert_nil  (      t[4])
+  end
+
+  assert_equal('SM', t[2])
+
+  assert_equal('SM', t[3])
+
+  do local t = assert_table(t[4])
+    assert_equal(0, t[1])
+    assert_equal(1, t[2])
+    assert_equal(2, t[3])
+    assert_equal(3, t[4])
+    assert_nil  (   t[5])
+  end
+
+  do local t = assert_table(t[5])
+    assert_equal(0, t[1])
+    assert_equal(1, t[2])
+    assert_equal(2, t[3])
+    assert_equal(3, t[4])
+    assert_nil  (   t[5])
+  end
+
+  do local t = assert_table(t[6])
+    assert_equal(0, t[1])
+    assert_equal(1, t[2])
+    assert_equal(2, t[3])
+    assert_equal(3, t[4])
+    assert_nil  (   t[5])
+  end
+
+  do local t = assert_table(t[7])
+    assert_equal(0, t[1])
+    assert_equal(1, t[2])
+    assert_nil  (   t[3])
+  end
+
+  do local t = assert_table(t[8])
+    assert_equal(0, t[1])
+    assert_equal(1, t[2])
+    assert_nil  (   t[3])
+  end
+
+  assert_equal(3, t[9])
+  assert_equal(4, t[10])
+end)
 
 end
 

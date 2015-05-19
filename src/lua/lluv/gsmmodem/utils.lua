@@ -1,6 +1,8 @@
 local tpdu  = require "tpdu"
 local Bit7  = require "tpdu.bit7"
 local iconv = require "iconv"
+local lpeg  = require "lpeg"
+local ut    = require "lluv.utils"
 
 local unpack = unpack or table.unpack
 
@@ -197,6 +199,90 @@ local function ocall(fn, ...)
   if fn then return fn(...) end
 end
 
+local function lpeg_match(str, pat)
+  local t, pos = pat:match(str)
+  if pos ~= nil then str = str:sub(pos) end
+  return t, str
+end
+
+local split_args do
+  local function MakeCsvGramma(sep, quot)
+    assert(#sep == 1 and #quot == 1)
+    local P, C, Cs, Ct, Cp = lpeg.P, lpeg.C, lpeg.Cs, lpeg.Ct, lpeg.Cp
+    local nl, sp   = P('\n'), P(' ')^0
+    local any, eos = P(1), P(-1)
+
+    local nonescaped = C((any - (nl + P(quot) + P(sep) + eos))^0)
+    local escaped = 
+      sp * P(quot) *
+        Cs(
+          ((any - P(quot)) + (P(quot) * P(quot)) / quot)^0
+        ) *
+      P(quot) * sp
+
+    local field      = escaped + nonescaped
+    local record     = Ct(field * ( P(sep) * field )^0) * (nl + eos) * Cp()
+    return record
+  end
+
+  local pat = MakeCsvGramma(',', '"')
+  split_args = function(str)
+    return lpeg_match(str, pat)
+  end
+end
+
+local split_list, decode_list do
+  local function MakeListGramma(sep)
+    assert(#sep == 1)
+    local P, C, Cs, Ct, Cp = lpeg.P, lpeg.C, lpeg.Cs, lpeg.Ct, lpeg.Cp
+    local nl, sp   = P('\n'), P(' ')^0
+    local any, eos = P(1), P(-1)
+    local quot = P('(') + P(')')
+
+    local nonescaped = sp * C(
+      (any - (quot + P(sep) + nl - eos))^0
+    ) * sp
+    local escaped =  sp * P('(') * Cs((any - quot)^0) * P(')') * sp
+
+    local field      = escaped + nonescaped
+    local record     = Ct(field * ( P(sep) * field )^0) * (nl + eos) * Cp()
+    return record
+  end
+
+  local pat = MakeListGramma(',')
+  split_list = function(str)
+    return lpeg_match(str, pat)
+  end
+
+  local function decode_range(res, t)
+    local a, b = ut.split_first(t, '-', true)
+    if b and tonumber(a) and tonumber(b) then
+      for i = tonumber(a), tonumber(b) do res[#res+1] = i end
+    else
+      res[#res + 1] = tonumber(t) or t
+    end
+    return res
+  end
+
+  local function decode_elem(t)
+    local res = {}
+    t = split_args(t)
+    for i = 1, #t do
+      decode_range(res, t[i])
+    end
+    if #res == 1 then res = res[1] end
+    return res
+  end
+
+  decode_list = function(t)
+    t = split_list(t)
+    for i = 1, #t do
+      t[i] = decode_elem(t[i])
+    end
+    return t
+  end
+end
+
 return {
   EncodeUcs2      = EncodeUcs2;
   EncodeGsm7      = EncodeGsm7;
@@ -207,4 +293,7 @@ return {
   ts2date         = ts2date;
   date2ts         = date2ts;
   ocall           = ocall;
+  split_args      = split_args;
+  split_list      = split_list;
+  decode_list     = decode_list;
 }
