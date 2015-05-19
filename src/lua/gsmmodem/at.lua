@@ -2,8 +2,6 @@ local uv     = require "lluv"
 local ut     = require "lluv.utils"
 local Error  = require "gsmmodem.error".error
 local lpeg   = require "lpeg"
-local ok, pp = pcall(require, "pp")
-if not ok then pp = print end
 
 local unpack = unpack or table.unpack
 
@@ -172,12 +170,16 @@ local RES_I     = 4
 ---------------------------------------------------------------
 local ATStream = ut.class() do
 
+local STATE_NONE          = 0
+local STATE_WAIT_URC_DATA = 1
+
 function ATStream:__init(_self)
   self._self           = _self or self
   self._eol            = '\r\n'
   self._active_queue   = ut.Queue.new()
   self._command_queue  = ut.List.new()
   self._buffer         = ut.Buffer.new(self._eol)
+  self._state          = {STATE_NONE}
 
   -- we can get final response (OK/ERROR) only after empty line
   -- all responses is ...<EOL><EOL>[RESPONSE]<EOL>
@@ -251,53 +253,62 @@ function ATStream:_command_done(status, info)
   if t[CB_I] then t[CB_I](self._self, err, t[CMD_I], msg, status, info) end
 end
 
+local function execute_step(self, line)
+  if #line == 0 then
+    self._has_empty_line = true
+    return
+  end
+
+  if self._state[1] == STATE_WAIT_URC_DATA then
+    local typ, info = self._state.typ, self._state.info
+    self._state[1], self._state.typ, self._state.info = STATE_NONE
+    return self:on_message_(typ, info, line)
+  end
+
+  local urc_typ, urc_info = is_async_msg(line)
+  if urc_typ then
+    if urc_typ == '+CMT' or urc_typ == '+CDS' then
+      self._state[1]   = STATE_WAIT_URC_DATA
+      self._state.typ  = urc_typ
+      self._state.info = urc_info
+    else
+      self:on_message_(urc_typ, urc_info)
+    end
+    return
+  end
+
+  local t = self._active_queue:peek()
+  if t then
+    local status, info = is_final_msg(line)
+
+    if status then -- command done
+      return self:_command_done(status, info)
+    end
+
+    local prompt = t[UD_I]
+    if prompt and prompt[1] == line then
+      t[UD_I] = nil
+      return self:_on_command(prompt[2], prompt[3])
+    end
+
+    local r = t[RES_I] or {}
+    r[#r + 1] = line
+    t[RES_I] = r
+
+    return
+  end
+
+  if self._unexpected then
+    self:_unexpected(line)
+  end
+end
+
 function ATStream:execute()
   while true do
     local line = self:_read_line() or self:_read_prompt()
     if not line then break end
 
-    if #line > 0 then
-      if self._state == 'async_info' then
-        self:on_message_(self._async_type, self._async_info, line)
-        self._state, self._async_type, self._async_type = nil
-      else
-        local async, async_info = is_async_msg(line)
-        if async then
-          if async == '+CMT' or async == '+CDS' then
-            self._async_type = async
-            self._async_info = async_info
-            self._state = 'async_info'
-          else
-            self:on_message_(async, async_info)
-          end
-        else
-          local t = self._active_queue:peek()
-          if t then
-
-            local status, info = is_final_msg(line)
-
-            if status then
-              self:_command_done(status, info)
-            else
-              if t[UD_I] and t[UD_I][1] == line then
-                self:_on_command(t[UD_I][2], t[UD_I][3])
-                t[UD_I] = nil
-              else
-                local r = t[RES_I] or {}
-                r[#r + 1] = line
-                t[RES_I] = r
-              end
-            end
-
-          else
-            pp('unexpected message: ', line)
-            -- assert(t, 'unexpected message: ', line)
-          end
-        end
-      end
-    end
-
-    self._has_empty_line = (#line == 0)
+    execute_step(self, line)
   end
 
   return self
