@@ -10,6 +10,8 @@ local split_args  = utils.split_args
 local split_list  = utils.split_list
 local decode_list = utils.decode_list
 
+local function dummy()end
+
 local is_async_msg do
 
 local t = {

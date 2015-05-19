@@ -79,13 +79,20 @@ local function EncodeValidity(vp)
   return vp
 end
 
-local next_reference do
+local next_reference, reset_reference do
+
 local ref = 0
+
 next_reference = function ()
   ref = (ref + 1) % 0xFFFF
   if ref == 0 then ref = 1 end
   return ref
 end
+
+reset_reference = function (v)
+  ref = v or 0
+end
+
 end
 
 local function EncodeSmsSubmit(number, text, opt)
@@ -296,4 +303,6 @@ return {
   split_args      = split_args;
   split_list      = split_list;
   decode_list     = decode_list;
+  next_reference  = next_reference;
+  reset_reference = reset_reference;
 }
