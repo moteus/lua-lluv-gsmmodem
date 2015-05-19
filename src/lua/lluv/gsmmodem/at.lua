@@ -1,8 +1,8 @@
 local uv     = require "lluv"
 local ut     = require "lluv.utils"
-local Error  = require "gsmmodem.error".error
+local Error  = require "lluv.gsmmodem.error".error
+local utils  = require "lluv.gsmmodem.utils"
 local lpeg   = require "lpeg"
-local utils  = require "gsmmodem.utils"
 
 local unpack = unpack or table.unpack
 

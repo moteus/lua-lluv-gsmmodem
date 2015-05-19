@@ -1,6 +1,6 @@
-local at    = require "gsmmodem.at"
-local utils = require "gsmmodem.utils"
-local Error = require "gsmmodem.error".error
+local at    = require "lluv.gsmmodem.at"
+local utils = require "lluv.gsmmodem.utils"
+local Error = require "lluv.gsmmodem.error".error
 local uv    = require "lluv"
 local ut    = require "lluv.utils"
 local tpdu  = require "tpdu"
