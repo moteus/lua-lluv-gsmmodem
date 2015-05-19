@@ -2,8 +2,11 @@ local uv     = require "lluv"
 local ut     = require "lluv.utils"
 local Error  = require "gsmmodem.error".error
 local lpeg   = require "lpeg"
+local utils  = require "gsmmodem.utils"
 
 local unpack = unpack or table.unpack
+
+local pack_args = utils.pack_args
 
 local function lpeg_match(str, pat)
   local t, pos = pat:match(str)
@@ -89,6 +92,8 @@ local split_list, decode_list do
   end
 end
 
+local is_async_msg do
+
 local t = {
   RING            = "Ringing",
   BUSY            = "Busy",
@@ -97,7 +102,7 @@ local t = {
   ["NO ANSWER"]   = "No answer",
 }
 
-local function is_async_msg(line)
+is_async_msg = function(line)
   local info = t[line]
   if info then return line, info end
 
@@ -117,6 +122,10 @@ local function is_async_msg(line)
   if info then return "+CDSI", info end
 end
 
+end
+
+local is_final_msg do
+
 local t = {
   OK                      = "Success",
   ERROR                   = "Error",
@@ -124,7 +133,7 @@ local t = {
   ["TOO MANY PARAMETERS"] = "Too many parameters",
 }
 
-local function is_final_msg(line)
+is_final_msg = function (line)
   local info = t[line]
   if info then return line, info end
 
@@ -135,30 +144,14 @@ local function is_final_msg(line)
   if info then return "+CMS ERROR", err end
 end
 
+end
+
 local trim = function(data)
   return data:match('^%s*(.-)%s*$')
 end
 
 local unquot = function(data)
   return (trim(data):match('^"?(.-)"?$'))
-end
-
-local function dummy()end
-
-local function is_callable(f) return (type(f) == 'function') and f end
-
-local pack_args = function(...)
-  local n    = select("#", ...)
-  local args = {...}
-  local cb   = args[n]
-  if is_callable(cb) then
-    args[n] = nil
-    n = n - 1
-  else
-    cb = dummy
-  end
-
-  return cb, unpack(args, 1, n)
 end
 
 local UD_I      = 0
@@ -623,7 +616,7 @@ function ATCommander:CMGS(len, pdu, cb)
     cmd = string.format('AT+CMGS="%s"', len)
   end
   cb = cb or dummy
-  return self:_basic_cmd_ex(cmd, '>', pdu .. '\26', function(this, err, info)
+  return self:_basic_cmd_ex(cmd, 5000, '>', 70000, pdu .. '\26', function(this, err, info)
     if err then return cb(this, err, info) end
 
     -- Text mode: message_reference[,service_center_time_stamp]

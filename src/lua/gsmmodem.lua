@@ -7,59 +7,9 @@ local tpdu  = require "tpdu"
 local date  = require "date"
 uv.rs232    = require "lluv.rs232"
 
-local function dummy()end
-
-local function is_callable(f) return (type(f) == 'function') and f end
-
-local unpack = unpack or table.unpack
-
-local pack_args = function(...)
-  local n    = select("#", ...)
-  local args = {...}
-  local cb   = args[n]
-  if is_callable(cb) then
-    args[n] = nil
-    n = n - 1
-  else
-    cb = dummy
-  end
-
-  return cb, unpack(args, 1, n)
-end
-
-local function ts2date(d)
-  local tz  = math.abs(d.tz)
-  local htz = math.floor(tz)
-  local mtz = math.floor(
-    60 * math.mod(tz * 100, 100) / 100
-  )
-
-  local s = string.format("20%.2d-%.2d-%.2d %.2d:%.2d:%.2d %s%d:%.2d",
-    d.year, d.month, d.day,
-    d.hour, d.min, d.sec,
-    d.tz < 0 and '-' or '+', htz, mtz
-  )
-
-  return date(s)
-end
-
-local function date2ts(d)
-  local ts = {
-    year  = math.mod(d:getyear(), 1000),
-    month = d:getmonth(),
-    day   = d:getday(),
-    hour  = d:gethours(),
-    min   = d:getminutes(),
-    sec   = d:getseconds(),
-    tz    = d:getbias() / 60,
-  }
-
-  return ts
-end
-
-local function ocall(fn, ...)
-  if fn then return fn(...) end
-end
+local pack_args = utils.pack_args
+local ts2date   = utils.ts2date
+local date2ts   = utils.date2ts
 
 local DEFAULT_COMMAND_TIMEOUT = 60000
 local DEFAULT_COMMAND_DELAY   = 200
