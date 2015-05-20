@@ -292,9 +292,9 @@ local SMSMessage = ut.class() do
 
 function SMSMessage:__init(address, text, flash)
   self._type   = 'SUBMIT'
-  self._number = address
-  self._text   = text
-  if flash then self._class = 1 end
+  self:set_number(address)
+  self:set_text(text)
+  self:set_flash(flash)
   return self
 end
 
@@ -416,16 +416,37 @@ function SMSMessage:memory()
   return self._memory, self._location
 end
 
-function SMSMessage:set_text(text, codec)
+function SMSMessage:set_text(text, encode)
+  local codec
+
+  if not encode and utils.IsGsm7Compat(text) then
+    text  = utils.EncodeGsm7(text)
+    codec = 'BIT7'
+  else
+    text = utils.EncodeUcs2(text, nil, encode)
+    codec = 'UCS2'
+  end
+
   self._text  = text
-  if not codec then codec = 'BIT7' end
   self._codec = codec
 
   return self
 end
 
-function SMSMessage:text()
-  return self._text, self._codec
+function SMSMessage:text(encode)
+  local text, codec = self._text, self._codec
+
+  if codec == 'BIT7' then
+    text  = utils.DecodeGsm7(text, encode)
+    codec = encode or 'ASCII'
+  elseif codec == 'UCS2' then
+    if encode then
+      text  = utils.DecodeUcs2(text, encode)
+      codec = encode
+    end
+  end
+
+  return text, codec
 end
 
 function SMSMessage:set_number(v)

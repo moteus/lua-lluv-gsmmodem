@@ -9,7 +9,7 @@ local unpack = unpack or table.unpack
 -- This is not full GSM7 encode table but just ascii subset
 local GSM_PAT = [=[^[ ^{}\%[~%]|@!?$_&%%#'"`,.()*+-/0123456789:;<=>ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz]*$]=]
 
-local BASE_ENCODE = 'cp866'
+local BASE_ENCODE = 'ASCII'
 
 local iconv_cache = setmetatable({},{__mode = k})
 
@@ -41,18 +41,22 @@ local function EncodeGsm7(str, len)
   if not IsGsm7(str) then return false end
 
   str = Bit7.Asci2Gsm(str)
-  return split_len(str, len, 0x1B)
+  return len and split_len(str, len, 0x1B) or str
 end
 
 local function EncodeUcs2(str, len, from)
   from = from or BASE_ENCODE
-  str = iconv_encode(BASE_ENCODE, 'ucs-2', str)
+  str = iconv_encode(from, 'ucs-2', str)
 
-  return split_len(str, len * 2)
+  return len and split_len(str, len * 2) or str
 end
 
-local function DecodeGsm7(str)
-  return Bit7.Gsm2Asci(str)
+local function DecodeGsm7(str, to)
+  str = Bit7.Gsm2Asci(str)
+  if to then
+    str = iconv_encode('ASCII', to, str)
+  end
+  return str
 end
 
 local function DecodeUcs2(str, to)
@@ -295,6 +299,7 @@ return {
   EncodeGsm7      = EncodeGsm7;
   DecodeUcs2      = DecodeUcs2;
   DecodeGsm7      = DecodeGsm7;
+  IsGsm7Compat    = IsGsm7;
   EncodeSmsSubmit = EncodeSmsSubmit;
   pack_args       = pack_args;
   ts2date         = ts2date;
