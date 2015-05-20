@@ -304,7 +304,7 @@ local SMSMessage = ut.class() do
 function SMSMessage:__init(address, text, flash)
   self._type   = 'SUBMIT'
   self:set_number(address)
-  self:set_text(text)
+  if text then self:set_text(text) end
   self:set_flash(flash)
   return self
 end
@@ -429,6 +429,8 @@ end
 
 function SMSMessage:set_text(text, encode)
   local codec
+
+  assert(text)
 
   if not encode and utils.IsGsm7Compat(text) then
     text  = utils.EncodeGsm7(text)

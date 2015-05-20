@@ -1,4 +1,4 @@
-package.path = "..\\src\\lua\\?.lua;" .. package.path
+-- package.path = "..\\src\\lua\\?.lua;" .. package.path
 
 -- pcall(require, "luacov")
 

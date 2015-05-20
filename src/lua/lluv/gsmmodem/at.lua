@@ -354,7 +354,9 @@ function ATCommander:__init(stream)
 end
 
 local function remove_echo(res, cmd)
-  if res:sub(1,1) == '+' then return res end
+  if #res == 0 or res:sub(1,1) == '+' then
+    return res
+  end
 
   local echo, tail = ut.split_first(res, '\n')
   if cmd:upper() == echo then
