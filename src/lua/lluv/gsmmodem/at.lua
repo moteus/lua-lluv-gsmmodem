@@ -12,6 +12,14 @@ local decode_list = utils.decode_list
 
 local function dummy()end
 
+local DummyLogger = {} do
+  local lvl = {'emerg','alert','fatal','error','warning','notice','info','debug','trace'}
+  for _, l in ipairs(lvl) do
+    DummyLogger[l] = dummy;
+    DummyLogger[l..'_dump'] = dummy;
+  end
+end
+
 local is_async_msg do
 
 local t = {
@@ -86,13 +94,14 @@ local ATStream = ut.class() do
 local STATE_NONE          = 0
 local STATE_WAIT_URC_DATA = 1
 
-function ATStream:__init(_self)
+function ATStream:__init(_self, logger)
   self._self           = _self or self
   self._eol            = '\r\n'
   self._active_queue   = ut.Queue.new()
   self._command_queue  = ut.List.new()
   self._buffer         = ut.Buffer.new(self._eol)
   self._state          = {STATE_NONE}
+  self._logger         = logger or DummyLogger
 
   -- we can get final response (OK/ERROR) only after empty line
   -- all responses is ...<EOL><EOL>[RESPONSE]<EOL>
@@ -391,6 +400,11 @@ end
 
 function ATCommander:ATZ(cb)
   return self:_basic_cmd('ATZ', cb)
+end
+
+function ATCommander:Echo(mode, cb)
+  local cmd = string.format("ATE%d", mode and 1 or 0)
+  return self:_basic_cmd(cmd, cb)
 end
 
 function ATCommander:OperatorName(cb)

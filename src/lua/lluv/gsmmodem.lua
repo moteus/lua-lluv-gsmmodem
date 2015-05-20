@@ -104,6 +104,11 @@ function GsmModem:configure(cb)
       next_fn()
     end) end;
 
+    function() command:Echo(false, function(this, err, data)
+      if err then return cb(this, err, 'Echo', data) end
+      next_fn()
+    end) end;
+
     function() command:ErrorMode(1, function(this, err, data)
       if err then return cb(this, err, 'ErrorMode', data) end
       next_fn()
@@ -277,6 +282,12 @@ end
 
 function GsmModem:send_ussd(...)
   return self:cmd():CUSD(...)
+end
+
+function GsmModem:set_rs232_trace(lvl)
+  if lvl == false then lvl = 'none' end
+  if lvl == true or lvl == nil then lvl = 'trace' end
+  self._device:set_log_level(lvl)
 end
 
 end
