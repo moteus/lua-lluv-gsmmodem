@@ -353,11 +353,14 @@ function ATCommander:__init(stream)
   return self
 end
 
-local function remove_echo(res)
-  if #res > 0 and res:sub(1,1) ~= '+' then
-    local echo, tail = ut.split_first(res, '\n')
+local function remove_echo(res, cmd)
+  if res:sub(1,1) == '+' then return res end
+
+  local echo, tail = ut.split_first(res, '\n')
+  if cmd:upper() == echo then
     return tail or '', echo
   end
+
   return res
 end
 
@@ -368,7 +371,7 @@ function ATCommander:_basic_cmd(...)
     if err then return cb(this, err) end
     if status ~= 'OK' then return cb(this, E(status, info)) end
 
-    res = remove_echo(res)
+    res = remove_echo(res, cmd)
 
     cb(this, nil, #res == 0 and status or res)
   end)
@@ -390,7 +393,7 @@ function ATCommander:_basic_cmd_ex(...)
   self._stream:command_ex(cmd, timeout1, prompt, timeout2, data, function(this, err, cmd, res, status, info)
     if err then return cb(this, err) end
     if status ~= 'OK' then return cb(this, E(status, info)) end
-    res = remove_echo(res)
+    res = remove_echo(res, cmd)
 
     cb(this, nil, #res == 0 and status or res)
   end)

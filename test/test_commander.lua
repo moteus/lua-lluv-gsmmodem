@@ -67,6 +67,52 @@ it("pass command", function()
   assert_equal(3, called())
 end)
 
+it("echo command", function()
+  stream:on_command(function(self, cmd)
+    assert_equal(1, called())
+    assert_equal(stream, self)
+    assert_equal('AT+COPS?\r\n', cmd)
+  end)
+
+  assert_true(command:OperatorName(function(self, err, res)
+    assert_equal(2, called())
+    assert_equal(SELF, self)
+    assert_nil(err)
+    assert_equal('MTS', res)
+  end))
+
+  assert_equal(stream, stream
+    :append('\r\n+CMTI: 1\r\n')
+    :append('AT+COPS?\r\r\n+COPS: 0,0,"MTS"\r\n\r\nOK\r\n')
+  )
+  assert_equal(stream, stream:execute())
+
+  assert_equal(3, called())
+end)
+
+it("no echo command", function()
+  stream:on_command(function(self, cmd)
+    assert_equal(1, called())
+    assert_equal(stream, self)
+    assert_equal('AT+COPS?\r\n', cmd)
+  end)
+
+  assert_true(command:OperatorName(function(self, err, res)
+    assert_equal(2, called())
+    assert_equal(SELF, self)
+    assert_nil(err)
+    assert_equal('MTS', res)
+  end))
+
+  assert_equal(stream, stream
+    :append('\r\n+CMTI: 1\r\n')
+    :append('\r\n+COPS: 0,0,"MTS"\r\n\r\nOK\r\n')
+  )
+  assert_equal(stream, stream:execute())
+
+  assert_equal(3, called())
+end)
+
 it("error command", function()
   stream:on_command(function(self, cmd)
     assert_equal(1, called())
