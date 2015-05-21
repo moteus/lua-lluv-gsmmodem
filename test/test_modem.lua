@@ -236,6 +236,10 @@ function setup()
     };
     function(stream)
       stream:moc_write('\r\n+CDS: 25\r\n')
+      stream:moc_write('07919761989901F006270B917777777777F7515012113320215150121133402100\r\n')
+    end;
+    function(stream)
+      stream:moc_write('\r\n+CDS: 25\r\n')
       stream:moc_write('07919761989901F006280B917777777777F7515012118383215150121183752130\r\n')
     end;
     function(stream)
