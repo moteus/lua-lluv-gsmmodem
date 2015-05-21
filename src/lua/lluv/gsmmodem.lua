@@ -4,7 +4,6 @@ local Error = require "lluv.gsmmodem.error".error
 local uv    = require "lluv"
 local ut    = require "lluv.utils"
 local tpdu  = require "tpdu"
-local date  = require "date"
 uv.rs232    = require "lluv.rs232"
 
 local pack_args = utils.pack_args
@@ -95,12 +94,15 @@ function GsmModem:configure(cb)
   end
 
   chain = {
-    function() command:raw("\26", function(this, err, data)
+    function() command:raw("\26", 5000, next_fn) end;
+
+    function() command:ATZ(5000, function(this, err, data)
+      if err then return cb(this, err, 'ATZ', data) end
       next_fn()
     end) end;
 
-    function() command:ATZ(function(this, err, data)
-      if err then return cb(this, err, 'ATZ', data) end
+    function() self:at_wait(30, function(self, err, data)
+      if err then return cb(this, err, 'AT', data) end
       next_fn()
     end) end;
 
@@ -149,7 +151,7 @@ function GsmModem:open(cb)
         end
 
         if data:sub(-1) == '\255' then
-          self._stream:reset('REBOOT')
+          self._stream:reset(Error('REBOOT'))
           self._cmd_timer:stop()
           self._snd_timer:stop()
 
@@ -170,7 +172,7 @@ end
 
 function GsmModem:close(cb)
   if self._device then
-    self._stream:reset()
+    self._stream:reset(Error'EINTER')
     self._cmd_timer:close()
     self._snd_timer:close()
     self._device:close(cb)
@@ -282,6 +284,31 @@ end
 
 function GsmModem:send_ussd(...)
   return self:cmd():CUSD(...)
+end
+
+function GsmModem:at_wait(...)
+  local cb, cmd, sec = pack_args(...)
+  if type(cmd) == 'number' then
+    cmd, sec = '', cmd
+  end
+
+  local counter, poll_timeout = 0, 1000
+  sec = sec or 60
+
+  local function on_wait(self, err, data)
+    if err then
+      counter = counter + 1
+      if counter > sec then
+        return cb(this, err, 'AT', data)
+      end
+      return self:cmd():at(cmd, poll_timeout, on_wait)
+    end
+    cb(self)
+  end
+
+  self:cmd():at(cmd, poll_timeout, on_wait)
+
+  return self
 end
 
 function GsmModem:set_rs232_trace(lvl)

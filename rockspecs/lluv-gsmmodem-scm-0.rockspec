@@ -26,7 +26,7 @@ dependencies = {
 }
 
 build = {
-  copy_directories = {'test'},
+  copy_directories = {'test', 'examples'},
 
   type = "builtin",
 

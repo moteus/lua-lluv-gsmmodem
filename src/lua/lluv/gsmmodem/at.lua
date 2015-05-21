@@ -403,18 +403,18 @@ function ATCommander:_basic_cmd_ex(...)
   return true
 end
 
-function ATCommander:ATZ(cb)
-  return self:_basic_cmd('ATZ', cb)
+function ATCommander:ATZ(...)
+  return self:_basic_cmd('ATZ', ...)
 end
 
-function ATCommander:Echo(mode, cb)
+function ATCommander:Echo(mode, ...)
   local cmd = string.format("ATE%d", mode and 1 or 0)
-  return self:_basic_cmd(cmd, cb)
+  return self:_basic_cmd(cmd, ...)
 end
 
-function ATCommander:OperatorName(cb)
-  cb = cb or dummy
-  return self:_basic_cmd('AT+COPS?', function(this, err, info)
+function ATCommander:OperatorName(...)
+  local cb, timeout = pack_args(...)
+  return self:_basic_cmd('AT+COPS?', timeout, function(this, err, info)
     if err then return cb(this, err, info) end
 
     local str = info:match("^%+COPS: (.+)$")
@@ -430,38 +430,38 @@ function ATCommander:OperatorName(cb)
   end)
 end
 
-function ATCommander:ModelName(cb)
-  return self:_basic_cmd('AT+GMM', cb)
+function ATCommander:ModelName(...)
+  return self:_basic_cmd('AT+GMM', ...)
 end
 
-function ATCommander:ManufacturerName(cb)
-  return self:_basic_cmd('AT+CGMI', cb)
+function ATCommander:ManufacturerName(...)
+  return self:_basic_cmd('AT+CGMI', ...)
 end
 
-function ATCommander:RevisionVersion(cb)
-  return self:_basic_cmd('AT+CGMR', cb)
+function ATCommander:RevisionVersion(...)
+  return self:_basic_cmd('AT+CGMR', ...)
 end
 
-function ATCommander:IMEI(cb)
-  return self:_basic_cmd('AT+GSN', cb)
+function ATCommander:IMEI(...)
+  return self:_basic_cmd('AT+GSN', ...)
 end
 
-function ATCommander:IMSI(cb)
-  return self:_basic_cmd('AT+CIMI', cb)
+function ATCommander:IMSI(...)
+  return self:_basic_cmd('AT+CIMI', ...)
 end
 
-function ATCommander:ErrorMode(mode, cb)
+function ATCommander:ErrorMode(mode, ...)
   -- 0 - 'ERROR'
   -- 1 - '+CME ERROR: 772'
   -- 2 - '+CME ERROR: SIM powered down'
   -------------------------------------------------
   local cmd = string.format('AT+CMEE=%d', mode)
-  return self:_basic_cmd(cmd, cb)
+  return self:_basic_cmd(cmd, ...)
 end
 
-function ATCommander:SimReady(cb)
-  cb = cb or dummy
-  return self:_basic_cmd('AT+CPIN?', function(this, err, info)
+function ATCommander:SimReady(...)
+  local cb, timeout = pack_args(...)
+  return self:_basic_cmd('AT+CPIN?', timeout, function(this, err, info)
     if err then return cb(this, err, info) end
 
     local code = info:match("^%+CPIN:%s*(.-)%s*$")
@@ -475,20 +475,20 @@ function ATCommander:CNMI(...)
   return self:_basic_cmd(cmd, cb)
 end
 
-function ATCommander:CLIP(mode, cb)
+function ATCommander:CLIP(mode, ...)
   local cmd = string.format("AT+CLIP=%d", mode)
-  return self:_basic_cmd(cmd, cb)
+  return self:_basic_cmd(cmd, ...)
 end
 
-function ATCommander:CMGF(fmt, cb)
+function ATCommander:CMGF(fmt, ...)
   -- 0 - PDU
   -- 1 - Text
   local cmd = string.format("AT+CMGF=%d", fmt)
-  return self:_basic_cmd(cmd, cb)
+  return self:_basic_cmd(cmd, ...)
 end
 
 -- Read SMS
-function ATCommander:CMGR(i, cb)
+function ATCommander:CMGR(i, ...)
   -- stat
   --  0 - received unread
   --  1 - received read
@@ -499,7 +499,9 @@ function ATCommander:CMGR(i, cb)
   -- len
   --   PDU length in chars (without SMSC)
   local cmd = string.format("AT+CMGR=%d", i)
-  return self:_basic_cmd(cmd, function(this, err, info)
+  local cb, timeout = pack_args(...)
+
+  return self:_basic_cmd(cmd, timeout, function(this, err, info)
     if err then return cb(this, err, info) end
 
     -- no SMS
@@ -541,9 +543,9 @@ function ATCommander:CMGR(i, cb)
 end
 
 -- Delete SMS
-function ATCommander:CMGD(i, cb)
+function ATCommander:CMGD(i, ...)
   local cmd = string.format("AT+CMGD=%d", i)
-  return self:_basic_cmd(cmd, cb)
+  return self:_basic_cmd(cmd, ...)
 end
 
 -- Send SMS
@@ -607,6 +609,10 @@ end
 
 function ATCommander:at(...)
   local cb, cmd, timeout = pack_args(...)
+  if type(cmd) == 'number' then
+    timeout, cmd = cmd
+  end
+
   cmd = 'AT' .. (cmd or '')
 
   return self:_basic_cmd(cmd, timeout, cb)

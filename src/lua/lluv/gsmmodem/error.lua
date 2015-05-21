@@ -200,6 +200,8 @@ local AT_ERROR = {
   ETOOMANYPARAMETERS = {[0] = 'Too many parameters'};
   EPROTO             = {[0] = 'Invalid response'};
   TIMEOUT            = {[0] = 'Command timeout expire'};
+  REBOOT             = {[0] = 'Modem rebooted'};
+  EINTER             = {[0] = 'Command interrupted by user'};
 }
 
 local STATUS_TO_NAME = {

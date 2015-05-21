@@ -2,6 +2,7 @@ local tpdu  = require "tpdu"
 local Bit7  = require "tpdu.bit7"
 local iconv = require "iconv"
 local lpeg  = require "lpeg"
+local date  = require "date"
 local ut    = require "lluv.utils"
 
 local unpack = unpack or table.unpack
