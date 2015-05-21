@@ -34,6 +34,9 @@ is_async_msg = function(line)
   local info = t[line]
   if info then return line, info end
 
+  info = line:match('^%+CRING:%s*(.-)%s*$')
+  if info then return "+CRING", info end
+
   info = line:match('^%+CLIP:%s*(.-)%s*$')
   if info then return "+CLIP", info end
 

@@ -13,6 +13,8 @@ local date2ts   = utils.date2ts
 local DEFAULT_COMMAND_TIMEOUT = 60000
 local DEFAULT_COMMAND_DELAY   = 200
 
+local SMSMessage
+
 ---------------------------------------------------------------
 local GsmModem = ut.class() do
 
@@ -389,6 +391,44 @@ function GsmModem:set_rs232_trace(lvl)
   self._device:set_log_level(lvl)
 end
 
+local MESSAGE_STATUS = {
+  ['REC UNREAD'] = 'DELIVER',
+  ['REC READ']   = 'DELIVER',
+  ['STO UNSENT'] = 'SUBMIT',
+  ['STO SENT']   = 'SUBMIT',
+}
+
+function GsmModem:read_sms(...)
+  local cb, index, opt = pack_args(...)
+  local mem = opt and opt.memory
+  local del = opt and opt.delete
+
+  local function do_read(self, err)
+    if err then return cb(self, err) end
+    self:cmd():CMGR(index, function(self, err, pdu, stat, address, scts)
+      if err then return cb(self, err) end
+
+      local sms
+      if type(stat) == 'string' then
+        sms = SMSMessage.new(address, pdu)
+        sms:set_type(MESSAGE_STATUS[stat])
+      else
+        sms = SMSMessage.new():decode_pdu(pdu, stat)
+      end
+
+      if del then self:cmd():CMGD(index) end
+
+      cb(self, nil, sms)
+    end)
+  end
+
+  if mem then
+    self:cmd():at('+CPMS="' .. mem .. '"', do_read)
+  else
+    do_read(self)
+  end
+end
+
 end
 ---------------------------------------------------------------
 
@@ -398,7 +438,7 @@ local STORED_UNSENT = 2
 local STORED_SENT   = 3
 
 ---------------------------------------------------------------
-local SMSMessage = ut.class() do
+SMSMessage = ut.class() do
 
 function SMSMessage:__init(address, text, flash)
   self._type   = 'SUBMIT'
@@ -602,6 +642,15 @@ end
 function SMSMessage:set_flash(v)
   if v then self._class = 1 else self._class = nil end
   return self
+end
+
+function SMSMessage:set_type(v)
+  self._type = v
+  return self
+end
+
+function SMSMessage:type()
+  return self._type
 end
 
 end
