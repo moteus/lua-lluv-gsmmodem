@@ -69,7 +69,7 @@ is_final_msg = function (line)
   if info then return "+CME ERROR", info end
 
   info = line:match('^%+CMS ERROR:%s*(.-)%s*$')
-  if info then return "+CMS ERROR", err end
+  if info then return "+CMS ERROR", info end
 end
 
 end

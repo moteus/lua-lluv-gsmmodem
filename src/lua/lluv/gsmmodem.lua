@@ -66,11 +66,16 @@ function GsmModem:__init(...)
   self._cmd_timer = cmdTimeout
   self._snd_timer = cmdSendTimer
   self._urc       = {}
+  self._cds_wait  = {}
   self._reference = 0
 
   stream:on_message(function(this, typ, msg, info)
     local fn = self._urc['*']
     if fn then fn(this, typ, msg, info) end
+
+    if typ == '+CDS' then
+      self:_on_cds_check(msg, info)
+    end
 
     fn = self._urc[typ]
     if fn then fn(this, at.DecodeUrc(typ, msg, info)) end
@@ -244,6 +249,42 @@ function GsmModem:next_reference()
   return self._reference
 end
 
+local function remove_wait_ref(self, ref, status)
+  local ctx = self._cds_wait[ref]
+  if not ctx then return end
+
+  if ctx.set[ref] then
+    if not status or ctx.wait_any or not status.temporary then
+      self._cds_wait[ref]   = nil
+      ctx.set[ref] = nil
+      ctx.ret[ref] = status
+    end
+  end
+
+  if not (ctx.progress  or next(ctx.set)) then
+    local ref, ret = ctx.ref, ctx.ret
+    return ctx.cb(self, nil, ref, ret[ref] or ret)
+  end
+end
+
+local function register_wait_ref(self, ref, ctx)
+  --! @todo use address:ref as key
+
+  local prev = self._cds_wait[ref]
+  if prev then remove_wait_ref(prev, ref) end
+
+  self._cds_wait[ref] = ctx
+  ctx.set[ref]        = true
+end
+
+function GsmModem:_on_cds_check(len, pdu)
+  local pdu, err = tpdu.Decode(pdu, 'input')
+
+  if not (pdu or pdu.mr or pdu.status) then return end
+
+  remove_wait_ref(self, pdu.mr, pdu.status)
+end
+
 function GsmModem:send_sms(...)
   local cb, number, text, opt = pack_args(...)
   text = text or ''
@@ -258,25 +299,56 @@ function GsmModem:send_sms(...)
   })
   local cmd  = self:cmd()
 
-  local count, res, send_err = #pdus
+  local waitCds = opt and opt.waitReport
 
-  for i, pdu in ipairs(pdus) do
-    cmd:CMGS(pdu[2], pdu[1], function(self, err, ref)
-      if #pdus == 1 then
-        if err then return cb(self, err) end
+  local wait_ctx = waitCds and {
+    set      = {};
+    ret      = {};
+    cb       = cb;
+    ref      = nil;
+    progress = true;
+    number   = number;
+    wait_any = waitCds == 'any';
+  }
 
-        return cb(self, nil, ref)
-      end
+  if #pdus == 1 then
+    cmd:CMGS(pdus[1][2], pdus[1][1], function(self, err, ref)
+      if err then return cb(self, err) end
 
-      if err then send_err = err end
-      res = res or {}
-      res[i] = err or ref
+      if not waitCds then return cb(self, nil, ref) end
 
-      count = count - 1
-      if count == 0 then
-        return cb(self, send_err, res)
-      end
+      register_wait_ref(self, ref, wait_ctx)
+      wait_ctx.ref      = ref
+      wait_ctx.progress = nil
     end)
+  else
+    local count, res, send_err = #pdus, {}
+    for i, pdu in ipairs(pdus) do
+      cmd:CMGS(pdu[2], pdu[1], function(self, err, ref)
+        if err then send_err = err end
+
+        if waitCds and not err then
+          register_wait_ref(self, ref, wait_ctx)
+        end
+
+        res[i] = err or ref
+        count = count - 1
+
+        if count == 0 then
+          if not waitCds then return cb(self, send_err, res) end
+
+          wait_ctx.ref      = res
+          wait_ctx.progress = nil
+
+          if send_err then -- do not wait if at least one error
+            for _, ref in ipairs(res) do
+              self._cds_wait[ref] = nil
+            end
+            return cb(self, send_err, res)
+          end
+        end
+      end)
+    end
   end
 
   return self

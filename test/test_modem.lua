@@ -95,22 +95,39 @@ Stream:moc_on_input(function(self, data)
       error('Unexpected: `' .. buffer:read_all() .. '`')
     end
 
-    local expected = t[1]
+    if type(t) == 'function' then
+      iqueue:pop()
+      t(self)
+    else
 
-    local chunk = buffer:read_n(#expected)
-    if not chunk then break end
+      local expected = type(t) == 'table' and t[1] or t
 
-    if expected ~= chunk then
-      error('Expected: `' .. expected .. '` but got: `' .. chunk .. '`')
+      local chunk = buffer:read_n(#expected)
+      if not chunk then break end
+
+      if expected ~= chunk then
+        error('Expected: `' .. expected .. '` but got: `' .. chunk .. '`')
+      end
+
+      local response = type(t) == 'table' and t[2]
+      if response then
+        self:moc_write(response)
+      end
+
+      iqueue:pop()
     end
-
-    local response = t[2]
-    if response then
-      self:moc_write(response)
-    end
-
-    iqueue:pop()
   end
+
+  while not iqueue:empty() do
+    local t = iqueue:peek()
+    if type(t) == 'function' then
+      iqueue:pop()
+      t(self)
+    else
+      break
+    end
+  end
+
 end)
 
 for _, v in ipairs(t) do
@@ -139,6 +156,10 @@ local it = IT(_ENV or _M)
 function setup()
   gutils.reset_reference()
   call_count = 0
+end
+
+function teardown()
+  uv.close(true)
 end
 
 it('multipart sms', function()
@@ -193,5 +214,90 @@ it('multipart sms', function()
 end)
 
 end
+
+local _ENV = TEST_CASE'send_sms/wait_delivery_report' if ENABLE then
+
+local it = IT(_ENV or _M)
+
+local Stream
+
+function setup()
+  gutils.reset_reference()
+  call_count = 0
+
+  Stream = MakeStream{
+    {
+      'AT+CMGS=18\r\n',
+      '\r> ',
+    };
+    {
+      '0021010B917777777777F7000005E8329BFD06\26',
+      'AT+CMGS=18\r\n+CMGS: 40,\r\n\r\nOK\r\n'
+    };
+    function(stream)
+      stream:moc_write('\r\n+CDS: 25\r\n')
+      stream:moc_write('07919761989901F006280B917777777777F7515012118383215150121183752130\r\n')
+    end;
+    function(stream)
+      stream:moc_write('\r\n+CDS: 25\r\n')
+      stream:moc_write('07919761989901F006280B917777777777F7515012118383215150121134652146\r\n')
+    end;
+  }
+end
+
+function teardown()
+  uv.close(true)
+end
+
+it('wait temporary response', function()
+  local modem = GsmModem.new(Stream)
+
+  modem:open(function()
+    modem:send_sms('+77777777777', 'hello', {waitReport = 'any'}, function(self, err, ref, rep)
+      assert_equal(1, called())
+      assert_equal(self, modem)
+      assert_nil  (err      )
+      assert_equal(ref, 40  )
+      assert_table(rep)
+      assert_true(rep.temporary)
+      assert_false(rep.success)
+      assert_equal(48, rep.status)
+      assert_false(rep.recovered)
+      assert_string(rep.info)
+      self:close()
+    end)
+  end)
+
+  uv.run()
+
+  assert_equal(1, called(0))
+end)
+
+it('wait final response', function()
+  local modem = GsmModem.new(Stream)
+
+  modem:open(function()
+    modem:send_sms('+77777777777', 'hello', {waitReport = 'final'}, function(self, err, ref, rep)
+      assert_equal(1, called())
+      assert_equal(self, modem)
+      assert_nil  (err      )
+      assert_equal(ref, 40  )
+      assert_table(rep)
+      assert_false(rep.temporary)
+      assert_false(rep.success)
+      assert_equal(70, rep.status)
+      assert_false(rep.recovered)
+      assert_string(rep.info)
+      self:close()
+    end)
+  end)
+
+  uv.run()
+
+  assert_equal(1, called(0))
+end)
+
+end
+
 
 RUN()
