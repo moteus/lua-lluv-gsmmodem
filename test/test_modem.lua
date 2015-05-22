@@ -3,6 +3,8 @@ package.path = "..\\src\\lua\\?.lua;" .. package.path
 local utils     = require "utils"
 local TEST_CASE = require "lunit".TEST_CASE
 
+local debug = debug
+
 local RUN               = utils.RUN
 local IT, CMD, PASS     = utils.IT, utils.CMD, utils.PASS
 local nreturn, is_equal = utils.nreturn, utils.is_equal
@@ -372,6 +374,105 @@ it('CMT in PDU mode', function()
   assert_equal(1, called(0))
 end)
 
+it('CDS in PDU mode', function()
+  Stream = MakeStream{}
+
+  local modem = GsmModem.new(Stream)
+
+  modem:on_recv_status(function(self, sms)
+    assert_equal(1, called())
+    assert(sms)
+    assert_equal('+77777777777', sms:number())
+    assert_equal(40, sms:reference())
+    local _, status = assert_false(sms:delivery_status())
+    assert_table(status)
+    assert_equal(48, status.status)
+    assert_false(status.success)
+    assert_true(status.temporary)
+    assert_false(status.recovered)
+    assert_string(status.info)
+    self:close()
+  end)
+
+  modem:open(function()
+    Stream:moc_write('\r\n+CDS: 25\r\n')
+    Stream:moc_write('07919761989901F006280B917777777777F7515012118383215150121183752130\r\n')
+  end)
+
+  uv.timer():start(2000, function()
+    modem:close()
+  end)
+
+  uv.run()
+
+  assert_equal(1, called(0))
+end)
+
+it('CDS in Text mode (single line)', function()
+  Stream = MakeStream{}
+
+  local modem = GsmModem.new(Stream)
+
+  modem:on_recv_status(function(self, sms)
+    assert_equal(1, called())
+    assert(sms)
+    assert_equal('+77777777777', sms:number())
+    assert_equal(46, sms:reference())
+    local _, status = assert_false(sms:delivery_status())
+    assert_table(status)
+    assert_equal(48, status.status)
+    assert_false(status.success)
+    assert_true(status.temporary)
+    assert_false(status.recovered)
+    assert_string(status.info)
+    self:close()
+  end)
+
+  modem:open(function()
+    Stream:moc_write('\r\n+CDS: 6,46,"+77777777777",145,"15/05/22,14:14:13+12","15/05/22,14:14:13+12",48\r\n')
+  end)
+
+  uv.timer():start(2000, function()
+    modem:close()
+  end)
+
+  uv.run()
+
+  assert_equal(1, called(0))
+end)
+
+it('CDS in Text mode (multi line)', function()
+  Stream = MakeStream{}
+
+  local modem = GsmModem.new(Stream)
+
+  modem:on_recv_status(function(self, sms)
+    assert_equal(1, called())
+    assert(sms)
+    assert_equal('+77777777777', sms:number())
+    assert_equal(46, sms:reference())
+    local _, status = assert_false(sms:delivery_status())
+    assert_table(status)
+    assert_equal(48, status.status)
+    assert_false(status.success)
+    assert_true(status.temporary)
+    assert_false(status.recovered)
+    assert_string(status.info)
+    self:close()
+  end)
+
+  modem:open(function()
+    Stream:moc_write('\r\n+CDS: \r\n6,46,"+77777777777",145,"15/05/22,14:14:13+12","15/05/22,14:14:13+12",48\r\n')
+  end)
+
+  uv.timer():start(2000, function()
+    modem:close()
+  end)
+
+  uv.run(debug.traceback)
+
+  assert_equal(1, called(0))
+end)
 
 end
 

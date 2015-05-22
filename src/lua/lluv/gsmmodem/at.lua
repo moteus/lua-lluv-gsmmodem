@@ -192,7 +192,13 @@ local function execute_step(self, line)
 
   local urc_typ, urc_info = is_async_msg(line)
   if urc_typ then
-    if urc_typ == '+CMT' or urc_typ == '+CDS' then
+      -- in text mode CDS can be 
+      --  * '+CDS: 6,46,"+77777777777", ... \r\n'
+      --  * '+CDS: \r\n 6,46,"+77777777777", ... \r\n'
+      -- in PDU mode it can be only '+CDS 25\r\n<PDU>\r\n'
+    if (urc_typ == '+CMT') or (
+      urc_typ == '+CDS' and (tonumber(urc_info) or #urc_info == 0)
+    ) then
       self._state[1]   = STATE_WAIT_URC_DATA
       self._state.typ  = urc_typ
       self._state.info = urc_info
@@ -319,9 +325,11 @@ local function Decode_CMT_text(typ, msg, text)
 end
 
 local function Decode_CDS_text(typ, msg, text)
-  local args = split_args(msg)
+  local args = split_args(text or msg)
+  local ref, number, status = args[2], args[3], args[#args]
+  ref, status = tonumber(ref), tonumber(status)
 
-  return typ, true, msg, text
+  return typ, true, ref, status, number
 end
 
 local function Decode_CMT_CDS_pdu(typ, msg, pdu)
@@ -337,6 +345,10 @@ local function Decode_URC(mode, ...)
     local mem, n = ut.usplit(msg, ',', true)
     mem, n = unquot(mem), tonumber(n)
     return typ, mem, n
+  end
+
+  if typ == '+CDS' and #msg == 0 then
+    msg, info = info or msg
   end
 
   if typ == '+CMT' or typ == '+CDS' then

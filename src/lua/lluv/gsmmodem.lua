@@ -81,7 +81,7 @@ function GsmModem:__init(...)
     if fn then fn(this, typ, msg, info) end
 
     if typ == '+CDS' then
-      self:_on_cds_check(msg, info)
+      self:_on_cds_check(at.DecodeUrc(nil, typ, msg, info))
     end
 
     fn = self._urc[typ]
@@ -241,7 +241,24 @@ end
 
 function GsmModem:on_recv_status(handler)
   local typ = URC_TYPS_INVERT['on_recv_status']
-  self._urc[typ] = handler
+  if not handler then self._urc[typ] = nil else
+    self._urc[typ] = function(self, typ, mode, ...)
+      local sms
+      if mode then
+        local ref, status, number = ...
+        sms = SMSMessage.new()
+          :set_type('DELIVER-REPORT')
+          :set_reference(ref)
+          :set_delivery_status(status)
+          :set_number(number)
+      else
+        local pdu = ...
+        sms = SMSMessage.new():decode_pdu(pdu, REC_UNREAD)
+      end
+      handler(self, sms)
+    end
+  end
+
   return self
 end
 
@@ -297,12 +314,19 @@ local function register_wait_ref(self, ref, ctx)
   ctx.set[ref]        = true
 end
 
-function GsmModem:_on_cds_check(len, pdu)
-  local pdu, err = tpdu.Decode(pdu, 'input')
+function GsmModem:_on_cds_check(typ, mode, ...)
+  local ref, status, number
+  if mode then
+    ref, status, number = ...
+    status = tpdu._DecodeStatus(status)
+  else
+    local pdu, len = ...
+    pdu = tpdu.Decode(pdu, 'input')
+    if not (pdu or pdu.mr or pdu.status) then return end
+    ref, status, number = pdu.mr, pdu.status, pdu.addr
+  end
 
-  if not (pdu or pdu.mr or pdu.status) then return end
-
-  remove_wait_ref(self, pdu.mr, pdu.status)
+  remove_wait_ref(self, ref, status, number)
 end
 
 function GsmModem:send_sms(...)
@@ -683,6 +707,16 @@ function SMSMessage:delivery_status()
   if not state then return end
 
   return state.success, state
+end
+
+function SMSMessage:set_delivery_status(v)
+  if type(v) == 'number' then
+    self._delivery_status = tpdu._DecodeStatus(v)
+  else
+    self._delivery_status = v
+  end
+
+  return self
 end
 
 function SMSMessage:flash()
