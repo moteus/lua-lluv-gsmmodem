@@ -421,7 +421,7 @@ function ATCommander:OperatorName(...)
     if err then return cb(this, err, info) end
 
     local str = info:match("^%+COPS: (.+)$")
-    if not str then return cb(this, E('EPROTO', nil, res)) end
+    if not str then return cb(this, E('EPROTO', nil, info)) end
 
     str = split_args(str)
     str = str and str[3]
@@ -443,6 +443,25 @@ end
 
 function ATCommander:RevisionVersion(...)
   return self:_basic_cmd('AT+CGMR', ...)
+end
+
+function ATCommander:MemoryStatus(...)
+  local cb, timeout = pack_args(...)
+  return self:_basic_cmd('AT+CPMS?', timeout, function(this, err, info)
+    if err then return cb(this, err, info) end
+
+    local str = info:match("^%+CPMS: (.+)$")
+    if not str then return cb(this, E('EPROTO', nil, info)) end
+
+    str = split_args(str)
+    if not str then return cb(this, E('EPROTO', nil, info)) end
+
+    local mem1 = str[1] and #str[1] > 0 and {str[1], tonumber(str[2]), tonumber(str[3])} or nil
+    local mem2 = str[1] and #str[1] > 0 and {str[4], tonumber(str[5]), tonumber(str[6])} or nil
+    local mem3 = str[1] and #str[1] > 0 and {str[7], tonumber(str[8]), tonumber(str[9])} or nil
+
+    cb(this, nil, mem1, mem2, mem3)
+  end)
 end
 
 function ATCommander:IMEI(...)
@@ -470,6 +489,32 @@ function ATCommander:SimReady(...)
     local code = info:match("^%+CPIN:%s*(.-)%s*$")
     cb(this, nil, code or info)
   end)
+end
+
+function ATCommander:SmsTextMode(...)
+  local cb, mode, timeout = pack_args(...)
+  if type(mode) == 'number' then
+    timeout, mode = mode
+  end
+
+  if mode == nil then
+    self:_basic_cmd('AT+CMGF?', timeout, function(this, err, info)
+      if err then return cb(this, err, info) end
+
+      local code = info:match("^%+CMGF:%s*(%d+)%s*$")
+      if not code then return cb(this, E('EPROTO', nil, info)) end
+
+      cb(this, nil, tonumber(code) == 1)
+    end)
+  else
+    local cmd = string.format("AT+CMGF=%d", mode and 1 or 0)
+    self:_basic_cmd(cmd, timeout, function(this, err, info)
+      if err then return cb(this, err, info) end
+
+      cb(this, nil, mode)
+    end)
+  end
+  return self
 end
 
 function ATCommander:CNMI(...)

@@ -1,4 +1,4 @@
--- package.path = "..\\src\\lua\\?.lua;" .. package.path
+package.path = "..\\src\\lua\\?.lua;" .. package.path
 
 -- pcall(require, "luacov")
 
@@ -15,9 +15,9 @@ local pcall, error, type, table, ipairs, print, tonumber = pcall, error, type, t
 local RUN = utils.RUN
 local IT, CMD, PASS = utils.IT, utils.CMD, utils.PASS
 local nreturn, is_equal = utils.nreturn, utils.is_equal
-local EOL = '\r\n'
-local OK = EOL..'OK'..EOL
-local ERROR = EOL..'ERROR'..EOL
+local EOL   = '\r\n'
+local OK    = EOL ..  'OK'   ..EOL
+local ERROR = EOL .. 'ERROR' ..EOL
 
 local trim = function(data)
   return data:match('^%s*(.-)%s*$')
@@ -321,6 +321,89 @@ it(("CMGS#%.3d command"):format(i), function()
 
   assert_equal(stream, stream:append(response))
   assert_equal(stream, stream:execute())
+end)
+
+end
+
+end
+
+do -- MemoryStatus
+
+local COMMAND = {
+  {
+    'AT+CPMS?',
+    '+CPMS: "SM",8,20,"SM",8,20,"SM",8,20',
+    {
+      {"SM", 8, 20},
+      {"SM", 8, 20},
+      {"SM", 8, 20},
+    },
+  };
+  {
+    'AT+CPMS?',
+    '+CPMS: ,,,,,,,,',
+    {},
+  };
+  {
+    'AT+CPMS?',
+    '+CPMS: ME,0,,"SM",,255,SR,,',
+    {
+      {"ME", 0,   nil},
+      {"SM", nil, 255},
+      {"SR", nil, nil},
+    },
+  };
+  {
+    'AT+CPMS?',
+    '+CPMS: ME,0,15,"SM",1,20,SR,2,22',
+    {
+      {"ME", 0, 15},
+      {"SM", 1, 20},
+      {"SR", 2, 22},
+    },
+  };
+}
+
+for i, T in ipairs(COMMAND) do
+  local request  = T[1] .. EOL
+  local response = T[2] .. EOL .. OK
+  local MEM1, MEM2, MEM3 = T[3][1], T[3][2], T[3][3]
+
+it(("MemoryStatus#%.3d command"):format(i), function()
+  stream:on_command(function(self, cmd)
+    assert_equal(1, called())
+    assert_equal(request, cmd)
+  end)
+
+  assert_true(command:MemoryStatus(function(self, err, mem1, mem2, mem3)
+    assert_equal(2, called())
+    assert_nil(err)
+
+    if not MEM1 then assert_nil(mem1) else
+      assert_equal(MEM1[1], mem1[1])
+      assert_equal(MEM1[2], mem1[2])
+      assert_equal(MEM1[3], mem1[3])
+    end
+
+    if not MEM2 then assert_nil(mem2) else
+      assert_equal(MEM2[1], mem2[1])
+      assert_equal(MEM2[2], mem2[2])
+      assert_equal(MEM2[3], mem2[3])
+    end
+
+    if not MEM3 then assert_nil(mem3) else
+      assert_equal(MEM3[1], mem3[1])
+      assert_equal(MEM3[2], mem3[2])
+      assert_equal(MEM3[3], mem3[3])
+    end
+  end))
+
+  assert_equal(1, called(0))
+
+  assert_equal(stream, stream:append(response))
+  assert_equal(stream, stream:execute())
+
+  assert_equal(2, called(0))
 end)
 
 end
