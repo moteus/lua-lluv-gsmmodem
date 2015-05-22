@@ -483,4 +483,26 @@ end)
 
 end
 
+local _ENV = TEST_CASE'URC decoder' if ENABLE then
+
+local it = IT(_ENV or _M)
+
+it('Guess CMT text mode', function()
+  local typ, mode, text, number = at.DecodeUrc(nil, '+CMT', '"+77777777777",,"15/05/22,11:00:58+12"', '1234567890')
+  assert_equal('+CMT', typ)
+  assert_true(mode)
+  assert_equal('1234567890',   text)
+  assert_equal('+77777777777', number)
+end)
+
+it('Guess CMT pdu mode', function()
+  local typ, mode, pdu, len = at.DecodeUrc(nil, '+CMT', ',28', '07919761989901F0040B919791699674F20000515022114032210A31D98C56B3DD703918')
+  assert_equal('+CMT', typ)
+  assert_false(mode)
+  assert_equal(28, len)
+  assert_equal('07919761989901F0040B919791699674F20000515022114032210A31D98C56B3DD703918', pdu)
+end)
+
+end
+
 RUN()

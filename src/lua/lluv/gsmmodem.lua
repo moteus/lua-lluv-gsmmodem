@@ -15,6 +15,11 @@ local DEFAULT_COMMAND_DELAY   = 200
 
 local SMSMessage
 
+local REC_UNREAD    = 0
+local REC_READ      = 1
+local STORED_UNSENT = 2
+local STORED_SENT   = 3
+
 ---------------------------------------------------------------
 local GsmModem = ut.class() do
 
@@ -80,7 +85,7 @@ function GsmModem:__init(...)
     end
 
     fn = self._urc[typ]
-    if fn then fn(this, at.DecodeUrc(typ, msg, info)) end
+    if fn then fn(this, at.DecodeUrc(nil, typ, msg, info)) end
   end)
 
   return self
@@ -123,7 +128,7 @@ function GsmModem:configure(cb)
       next_fn()
     end) end;
 
-    function() command:CMGF(0, function(this, err, data)
+    function() command:SmsTextMode(false, function(this, err, mode)
       if err then return cb(this, err, 'CMGF', data) end
       next_fn()
     end) end;
@@ -205,7 +210,20 @@ end
 
 function GsmModem:on_recv_sms(handler)
   local typ = URC_TYPS_INVERT['on_recv_sms']
-  self._urc[typ] = handler
+  if not handler then self._urc[typ] = nil else
+    self._urc[typ] = function(self, typ, mode, ...)
+      local sms
+      if mode then
+        local text, number = ...
+        sms = SMSMessage.new(number, text)
+      else
+        local pdu = ...
+        sms = SMSMessage.new():decode_pdu(pdu, REC_UNREAD)
+      end
+      handler(self, sms)
+    end
+  end
+
   return self
 end
 
@@ -400,8 +418,11 @@ local MESSAGE_STATUS = {
 
 function GsmModem:read_sms(...)
   local cb, index, opt = pack_args(...)
-  local mem = opt and opt.memory
-  local del = opt and opt.delete
+  local mem, del
+  if type(opt) == 'string' then mem = opt else
+    mem = opt and opt.memory
+    del = opt and opt.delete
+  end
 
   local function do_read(self, err)
     if err then return cb(self, err) end
@@ -409,6 +430,7 @@ function GsmModem:read_sms(...)
       if err then return cb(self, err) end
 
       local sms
+
       if type(stat) == 'string' then
         sms = SMSMessage.new(address, pdu)
         sms:set_type(MESSAGE_STATUS[stat])
@@ -416,7 +438,16 @@ function GsmModem:read_sms(...)
         sms = SMSMessage.new():decode_pdu(pdu, stat)
       end
 
-      if del then self:cmd():CMGD(index) end
+      sms:set_index(index)
+      if mem then
+        sms:set_storage(mem)
+      end
+
+      if del then
+        return self:cmd():CMGD(function(self, err)
+          cb(self, nil, sms, err)
+        end)
+      end
 
       cb(self, nil, sms)
     end)
@@ -429,13 +460,32 @@ function GsmModem:read_sms(...)
   end
 end
 
+function GsmModem:delete_sms(...)
+  local cb, sms, opt = pack_args(...)
+
+  local index, mem
+  if getmetatable(sms) == SMSMessage then
+    index = sms:index()
+    mem   = sms:location()
+  else
+    index = sms
+    if type(opt) == 'string' then mem = opt else
+      mem = opt and opt.memory
+    end
+  end
+
+  if mem then
+    self:cmd():at('+CPMS="' .. mem .. '"', function(self, err)
+      if err then return cb(self, err) end
+      self:cmd():CMGD(index, cb)
+    end)
+  else
+    self:cmd():CMGD(index, cb)
+  end
+end
+
 end
 ---------------------------------------------------------------
-
-local REC_UNREAD    = 0
-local REC_READ      = 1
-local STORED_UNSENT = 2
-local STORED_SENT   = 3
 
 ---------------------------------------------------------------
 SMSMessage = ut.class() do
@@ -651,6 +701,24 @@ end
 
 function SMSMessage:type()
   return self._type
+end
+
+function SMSMessage:set_storage(v)
+  self._storage = v
+  return self
+end
+
+function SMSMessage:storage()
+  return self._storage
+end
+
+function SMSMessage:set_index(v)
+  self._index = v
+  return self
+end
+
+function SMSMessage:index()
+  return self._index
 end
 
 end

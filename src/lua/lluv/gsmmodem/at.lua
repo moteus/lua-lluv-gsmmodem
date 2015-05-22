@@ -311,7 +311,27 @@ end
 end
 ---------------------------------------------------------------
 
-local function Decode_URC(...)
+local function Decode_CMT_text(typ, msg, text)
+  local args = split_args(msg)
+
+  local number, alpha, scts = unpack(args)
+  return typ, true, text, number, scts
+end
+
+local function Decode_CDS_text(typ, msg, text)
+  local args = split_args(msg)
+
+  return typ, true, msg, text
+end
+
+local function Decode_CMT_CDS_pdu(typ, msg, pdu)
+  local alpha, len = ut.split_first(msg, ',', true)
+  if not len then len, alpha = alpha, '' end
+  alpha, len = unquot(alpha), tonumber(len)
+  return typ, false, pdu, len, alpha
+end
+
+local function Decode_URC(mode, ...)
   local typ, msg, info = ...
   if typ == '+CMTI' or typ == "+CDSI" then
     local mem, n = ut.usplit(msg, ',', true)
@@ -320,10 +340,17 @@ local function Decode_URC(...)
   end
 
   if typ == '+CMT' or typ == '+CDS' then
-    local alpha, len = ut.split_first(msg, ',', true)
-    if not len then len, alpha = alpha, '' end
-    alpha, len = unquot(alpha), tonumber(len)
-    return typ, info, len, alpha
+    if mode == nil then -- Guess mode by content
+      local args = split_args(msg)
+      mode = (#args >= 3) -- text mode
+    end
+
+    if mode then
+      if typ == '+CMT' then return Decode_CMT_text(...) end
+      return Decode_CDS_text(...)
+    end
+
+    return Decode_CMT_CDS_pdu(...)
   end
 
   if typ == '+CLIP' then
@@ -669,7 +696,7 @@ end
 function ATCommander:on_urc(fn)
   if not fn then self._stream:on_message() else
     self._stream:on_message(function(this, ...)
-      return fn(this, Decode_URC(...))
+      return fn(this, Decode_URC(nil, ...))
     end)
   end
 end

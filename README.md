@@ -39,14 +39,11 @@
     print('SMS Send result:', err or 'OK', 'Message reference:', ref or '<NONE>')
   end)
   ```
-  
+
 * Recv SMS
   ```Lua
-  device:on_recv_sms(function(self, typ, pdu, len)
-    local sms = GsmModem.SMSMessage():decode_pdu(pdu, GsmModem.REC_UNREAD)
-    if sms then
-      print("SMS from:", sms:number(), "Text:", sms:text())
-    end
+  device:on_recv_sms(function(self, sms)
+    print("SMS from:", sms:number(), "Text:", sms:text())
   end)
   ```
  

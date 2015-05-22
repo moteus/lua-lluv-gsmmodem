@@ -134,7 +134,7 @@ for _, v in ipairs(t) do
   iqueue:push(v)
 end
 
-return Stream
+return Stream, iqueue
 
 end
 
@@ -303,5 +303,76 @@ end)
 
 end
 
+local _ENV = TEST_CASE'recv sms' if ENABLE then
+
+local it = IT(_ENV or _M)
+
+local Stream
+
+function setup()
+  gutils.reset_reference()
+  call_count = 0
+end
+
+function teardown()
+  uv.close(true)
+end
+
+it('CMT in Text mode', function()
+  Stream = MakeStream{}
+
+  local modem = GsmModem.new(Stream)
+
+  modem:on_recv_sms(function(self, sms)
+    assert_equal(1, called())
+    assert(sms)
+    assert_equal('+77777777777', sms:number())
+    assert_equal('1234567890', sms:text())
+    self:close()
+  end)
+
+  modem:open(function()
+    Stream:moc_write('+CMT: "+77777777777",,"15/05/22,11:00:58+12"' .. '\r\n')
+    Stream:moc_write('1234567890' .. '\r\n')
+  end)
+
+  uv.timer():start(2000, function()
+    modem:close()
+  end)
+
+  uv.run()
+
+  assert_equal(1, called(0))
+end)
+
+it('CMT in PDU mode', function()
+  Stream = MakeStream{}
+
+  local modem = GsmModem.new(Stream)
+
+  modem:on_recv_sms(function(self, sms)
+    assert_equal(1, called())
+    assert(sms)
+    assert_equal('+77777777777', sms:number())
+    assert_equal('1234567890', sms:text())
+    self:close()
+  end)
+
+  modem:open(function()
+    Stream:moc_write('+CMT: ,28' .. '\r\n')
+    Stream:moc_write('07919761989901F0040B917777777777F70000515022114032210A31D98C56B3DD703918' .. '\r\n')
+  end)
+
+  uv.timer():start(2000, function()
+    modem:close()
+  end)
+
+  uv.run()
+
+  assert_equal(1, called(0))
+end)
+
+
+end
 
 RUN()
