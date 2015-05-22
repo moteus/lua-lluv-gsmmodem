@@ -19,31 +19,19 @@ local function init_device(self)
   end)
 end
 
-device:on_recv_sms(function(self, typ, pdu, len)
-  local sms = GsmModem.SMSMessage():decode_pdu(pdu, GsmModem.REC_UNREAD)
-  if sms then on_sms(self, sms) end
-end)
+device:on_recv_sms(on_sms)
 
-device:on_save_sms(function(self, typ, mem, index)
-  self:cmd():CMGR(index, function(self, err, pdu, state)
+device:on_save_sms(function(self, index, mem)
+  self:read_sms(index, {delete=true}, function(self, err, sms, del_err)
     if err then
-      return print("Error read sms:", err, pdu, state)
+      return print("Error read sms:", err)
     end
 
-    self:cmd():CMGD(index, function(self, err, ...)
-      if err then
-        return print("Error delete sms:", err, ...)
-      end
-  
-      print("SMS #" .. tostring(index) .. ' deleted')
-    end)
-
-    local sms = GsmModem.SMSMessage():decode_pdu(pdu, state)
-    if sms then on_sms(self, sms) end
+    on_sms(self, sms, del_err)
   end)
 end)
 
-device:on_call(function(self, typ, ani)
+device:on_call(function(self, ani)
   on_call(self, ani)
 end)
 
@@ -83,4 +71,4 @@ GsmServer('COM3', {
   rts          = 'ON';
 }, on_sms, on_call)
 
-uv.run()
+uv.run(debug.traceback)

@@ -344,7 +344,7 @@ local function Decode_URC(mode, ...)
   if typ == '+CMTI' or typ == "+CDSI" then
     local mem, n = ut.usplit(msg, ',', true)
     mem, n = unquot(mem), tonumber(n)
-    return typ, mem, n
+    return typ, n, mem
   end
 
   if typ == '+CDS' and #msg == 0 then

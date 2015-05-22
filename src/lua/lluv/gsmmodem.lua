@@ -229,7 +229,11 @@ end
 
 function GsmModem:on_save_sms(handler)
   local typ = URC_TYPS_INVERT['on_save_sms']
-  self._urc[typ] = handler
+  if not handler then self._urc[typ] = nil else
+    self._urc[typ] = function(self, typ, ...)
+      handler(self, ...)
+    end
+  end
   return self
 end
 
@@ -264,7 +268,11 @@ end
 
 function GsmModem:on_save_status(handler)
   local typ = URC_TYPS_INVERT['on_save_status']
-  self._urc[typ] = handler
+  if not handler then self._urc[typ] = nil else
+    self._urc[typ] = function(self, typ, ...)
+      handler(self, ...)
+    end
+  end
   return self
 end
 
@@ -276,8 +284,12 @@ end
 
 function GsmModem:on_call(handler)
   local typ = URC_TYPS_INVERT['on_call']
-  self._urc[typ] = handler
-  return true
+  if not handler then self._urc[typ] = nil else
+    self._urc[typ] = function(self, typ, ...)
+      handler(self, ...)
+    end
+  end
+  return self
 end
 
 function GsmModem:next_reference()
@@ -468,7 +480,7 @@ function GsmModem:read_sms(...)
       end
 
       if del then
-        return self:cmd():CMGD(function(self, err)
+        return self:cmd():CMGD(index, function(self, err)
           cb(self, nil, sms, err)
         end)
       end

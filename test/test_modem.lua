@@ -217,6 +217,83 @@ end)
 
 end
 
+local _ENV = TEST_CASE'read_sms' if ENABLE then
+
+local it = IT(_ENV or _M)
+
+function setup()
+  gutils.reset_reference()
+  call_count = 0
+end
+
+function teardown()
+  uv.close(true)
+end
+
+it('read sms with delete', function()
+  local Stream, q = MakeStream{
+    {
+      'AT+CMGR=11\r\n',
+      '\r\n+CMGR: 0,,26\r\n07919761989901F0240B917777777777F700005150225163642108AE30F9AC6EDFE1\r\n\r\nOK\r\n'
+    },
+    {
+      'AT+CMGD=11\r\n',
+      '\r\nOK\r\n'
+    },
+  }
+
+  local modem = GsmModem.new(Stream)
+
+  modem:open(function(self, ...)
+    self:read_sms(11, {delete = true}, function(self, err, sms, del)
+      assert_equal(1, called())
+      assert_equal(self, modem)
+      assert_nil  (err      )
+      assert_nil  (del      )
+
+      self:close()
+    end)
+  end)
+
+  uv.run()
+
+  assert_equal(1, called(0))
+  assert_true(q:empty())
+end)
+
+it('read sms with delete fail', function()
+  local Stream, q = MakeStream{
+    {
+      'AT+CMGR=11\r\n',
+      '\r\n+CMGR: 0,,26\r\n07919761989901F0240B917777777777F700005150225163642108AE30F9AC6EDFE1\r\n\r\nOK\r\n'
+    },
+    {
+      'AT+CMGD=11\r\n',
+      '\r\nERROR\r\n'
+    },
+  }
+
+  local modem = GsmModem.new(Stream)
+
+  modem:open(function(self, ...)
+    self:read_sms(11, {delete = true}, function(self, err, sms, del)
+      assert_equal(1, called())
+      assert_equal(self, modem)
+      assert_nil  (err      )
+      assert_not_nil(del      )
+
+      self:close()
+    end)
+  end)
+
+  uv.run()
+
+  assert_equal(1, called(0))
+  assert_true(q:empty())
+end)
+
+end
+
 local _ENV = TEST_CASE'send_sms/wait_delivery_report' if ENABLE then
 
 local it = IT(_ENV or _M)
@@ -305,7 +382,7 @@ end)
 
 end
 
-local _ENV = TEST_CASE'recv sms' if ENABLE then
+local _ENV = TEST_CASE'recv' if ENABLE then
 
 local it = IT(_ENV or _M)
 
@@ -470,6 +547,56 @@ it('CDS in Text mode (multi line)', function()
   end)
 
   uv.run(debug.traceback)
+
+  assert_equal(1, called(0))
+end)
+
+it('CMTI', function()
+  Stream = MakeStream{}
+
+  local modem = GsmModem.new(Stream)
+
+  modem:on_save_sms(function(self, index, mem)
+    assert_equal(1, called())
+    assert_equal(9, index)
+    assert_equal('SM', mem)
+    self:close()
+  end)
+
+  modem:open(function()
+    Stream:moc_write('\r\n+CMTI: "SM",9\r\n')
+  end)
+
+  uv.timer():start(2000, function()
+    modem:close()
+  end)
+
+  uv.run()
+
+  assert_equal(1, called(0))
+end)
+
+it('CLIP', function()
+  Stream = MakeStream{}
+
+  local modem = GsmModem.new(Stream)
+
+  modem:on_call(function(self, ani, ton)
+    assert_equal(1, called())
+    assert_equal('+77777777777', ani)
+    assert_equal(145, ton)
+    self:close()
+  end)
+
+  modem:open(function()
+    Stream:moc_write('\r\n+CLIP: "+77777777777",145,"",,"",0\r\n')
+  end)
+
+  uv.timer():start(2000, function()
+    modem:close()
+  end)
+
+  uv.run()
 
   assert_equal(1, called(0))
 end)
