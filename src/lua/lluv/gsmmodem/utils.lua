@@ -266,30 +266,34 @@ local split_list, decode_list do
     return lpeg_match(str, pat)
   end
 
-  local function decode_range(res, t)
+  local function decode_range(res, t, flat)
     local a, b = ut.split_first(t, '-', true)
     if b and tonumber(a) and tonumber(b) then
-      for i = tonumber(a), tonumber(b) do res[#res+1] = i end
+      if flat then
+        for i = tonumber(a), tonumber(b) do res[#res+1] = i end
+      else
+        res[#res+1] = {tonumber(a), tonumber(b)}
+      end
     else
       res[#res + 1] = tonumber(t) or t
     end
     return res
   end
 
-  local function decode_elem(t)
+  local function decode_elem(t, flat)
     local res = {}
     t = split_args(t)
     for i = 1, #t do
-      decode_range(res, t[i])
+      decode_range(res, t[i], flat)
     end
-    if #res == 1 then res = res[1] end
+    if #res == 1 and type(res[1]) ~= 'table' then res = res[1] end
     return res
   end
 
-  decode_list = function(t)
+  decode_list = function(t, flat)
     t = split_list(t)
     for i = 1, #t do
-      t[i] = decode_elem(t[i])
+      t[i] = decode_elem(t[i], flat)
     end
     return t
   end

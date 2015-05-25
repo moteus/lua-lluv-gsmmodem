@@ -427,9 +427,9 @@ it('split_args',function()
   assert_nil  (t[7])
 end)
 
-it('decode_list',function()
+it('decode_list flat',function()
   local lst = '("SM","BM","SR"),("SM"),(SM),(0-1,2,3),(0,1-3),(0-3),(0,1),(0,1),(3),4'
-  local t = assert_table(decode_list(lst))
+  local t = assert_table(decode_list(lst, true))
   do local t = assert_table(t[1])
     assert_equal('SM', t[1])
     assert_equal('BM', t[2])
@@ -479,6 +479,39 @@ it('decode_list',function()
 
   assert_equal(3, t[9])
   assert_equal(4, t[10])
+end)
+
+it('decode_list range',function()
+  local lst = '("SM","BM","SR"),(0-256),(0,1-3),(0,1),(3),4'
+  local t = assert_table(decode_list(lst, false))
+  do local t = assert_table(t[1])
+    assert_equal('SM', t[1])
+    assert_equal('BM', t[2])
+    assert_equal('SR', t[3])
+    assert_nil  (      t[4])
+  end
+
+  do local t = assert_table(t[2])
+    assert_table(t[1])
+    assert_equal(0,   t[1][1])
+    assert_equal(256, t[1][2])
+  end
+
+  do local t = assert_table(t[3])
+    assert_equal(0, t[1])
+    assert_table(t[2])
+    assert_equal(1, t[2][1])
+    assert_equal(3, t[2][2])
+  end
+
+  do local t = assert_table(t[4])
+    assert_equal(0, t[1])
+    assert_equal(1, t[2])
+    assert_nil  (   t[3])
+  end
+
+  assert_equal(3, t[5])
+  assert_equal(4, t[6])
 end)
 
 end

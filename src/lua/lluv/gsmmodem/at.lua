@@ -51,6 +51,9 @@ is_async_msg = function(line)
 
   info = line:match('^%+CDSI:%s*(.-)%s*$')
   if info then return "+CDSI", info end
+
+  info = line:match('^%+CBM:%s*(.-)%s*$')
+  if info then return "+CBM", info end
 end
 
 end
