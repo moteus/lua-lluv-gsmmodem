@@ -292,6 +292,35 @@ it('read sms with delete fail', function()
   assert_true(q:empty())
 end)
 
+it('read sms in text mode', function()
+  local Stream, q = MakeStream{
+    {
+      'AT+CMGR=11\r\n',
+      '\r\n+CMGR: "REC READ","+77777777777",,"15/04/24,13:54:54+12"\r\nPrivet\r\n\r\nOK\r\n'
+    },
+  }
+
+  local modem = GsmModem.new(Stream)
+
+  modem:open(function(self, ...)
+    self:read_sms(11, function(self, err, sms)
+      assert_equal(1, called())
+      assert_equal(self, modem)
+      assert_nil  (err      )
+      assert_equal('DELIVER',      sms:type())
+      assert_equal('+77777777777', sms:number())
+      assert_equal('Privet',       sms:text())
+
+      self:close()
+    end)
+  end)
+
+  uv.run()
+
+  assert_equal(1, called(0))
+  assert_true(q:empty())
+end)
+
 end
 
 local _ENV = TEST_CASE'send_sms/wait_delivery_report' if ENABLE then

@@ -488,6 +488,14 @@ function ATCommander:RevisionVersion(...)
 end
 
 function ATCommander:MemoryStatus(...)
+  -- mem1 - to read and write (cmgr/cmgl)
+  -- mem2 - to write and send (cmgw/cmss)
+  -- mem3 - to store new sms  (cmti/cdsi)
+  --
+  -- SM — SIM memory
+  -- ME — Device memory
+  -- MT — SIM+Device memory
+
   local cb, timeout = pack_args(...)
   return self:_basic_cmd('AT+CPMS?', timeout, function(this, err, info)
     if err then return cb(this, err, info) end
@@ -628,7 +636,7 @@ function ATCommander:CMGR(i, ...)
 
     stat, len = tonumber(stat), tonumber(len)
 
-    cb(this, nil, pdu, stat, alpha, len)
+    cb(this, nil, pdu, stat, len, alpha)
   end)
 end
 
@@ -663,6 +671,54 @@ function ATCommander:CMGS(len, pdu, cb)
     if not ref then return cb(this, E('EPROTO', nil, info)) end
 
     cb(this, nil, ref, data[2])
+  end)
+end
+
+-- List SMS
+function ATCommander:CMGL(...)
+  -- stat
+  --  0 - received unread
+  --  1 - received read
+  --  2 - stored unsent
+  --  3 - stored sent
+  --  4 - ANY
+
+  -- on my modem I get trancated pdu for long sms (len = 160)
+  -- Response looks like `+CMGL: 5,1,,160\r\n<TRANCATED PDU>+CMGL: 6,1,,88\r\n<PDU>`
+  -- Note there no EOL after trancated pdu. So this method just return trancated PDU.
+
+  local cb, stat, timeout = pack_args(...)
+
+  assert(type(stat) == 'number', 'Support only PDU mode')
+
+  local cmd = string.format("AT+CMGL=%d", stat)
+
+  return self:_basic_cmd(cmd, timeout, function(this, err, info)
+    if err then return cb(this, err, info) end
+
+    -- no SMS
+    if info == 'OK' then return cb(this, nil, nil) end
+
+    local res = {}
+
+    for opt, pdu, eol in info:gmatch("%+CMGL:%s*(.-)%s-\n(%x*)") do
+
+      local args = split_args(opt)
+      if not args then
+        return cb(this, Error('EPROTO', nil, info))
+      end
+
+      local index, stat, alpha, len = unpack(args)
+      index, stat, len = tonumber(index), tonumber(stat), tonumber(len)
+
+      if (not index) or (not len) or (not stat) then
+        return cb(this, E('EPROTO', nil, info))
+      end
+
+      res[#res + 1] = {index, pdu, stat, len, alpha}
+    end
+
+    cb(this, nil, res)
   end)
 end
 

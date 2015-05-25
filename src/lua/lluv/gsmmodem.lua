@@ -19,6 +19,42 @@ local REC_UNREAD    = 0
 local REC_READ      = 1
 local STORED_UNSENT = 2
 local STORED_SENT   = 3
+local STAT_ANY      = 4
+
+local MESSAGE_STATUS = {
+  ['REC UNREAD'] = 'DELIVER',
+  ['REC READ']   = 'DELIVER',
+  ['STO UNSENT'] = 'SUBMIT',
+  ['STO SENT']   = 'SUBMIT',
+}
+
+local function DecodeSms(pdu, stat, ...)
+  if type(stat) == 'string' then
+    local address = ...
+    sms = SMSMessage.new(address, pdu)
+    sms:set_type(MESSAGE_STATUS[stat])
+    return sms
+  end
+
+  local len = ...
+  local t, e = tpdu.Decode(pdu,
+    (state == REC_UNREAD or state == REC_READ) and 'input' or 'output',
+    len
+  )
+
+  -- we have no idea about direction so try guess
+  if (not t) and ((stat == nil) or (stat == STAT_ANY)) then
+    t, e = tpdu.Decode(pdu, 'input', len)
+  end
+
+  if not t then
+    local info = string.format("SMS Decode fail: %s (len=%d data=%q)", e, len, pdu)
+    return nil, Error('EPROTO', nil, info)
+  end
+
+  local sms = SMSMessage.new():decode_pdu(t)
+  return sms
+end
 
 ---------------------------------------------------------------
 local GsmModem = ut.class() do
@@ -461,13 +497,6 @@ function GsmModem:set_rs232_trace(lvl)
   self._device:set_log_level(lvl)
 end
 
-local MESSAGE_STATUS = {
-  ['REC UNREAD'] = 'DELIVER',
-  ['REC READ']   = 'DELIVER',
-  ['STO UNSENT'] = 'SUBMIT',
-  ['STO SENT']   = 'SUBMIT',
-}
-
 function GsmModem:read_sms(...)
   local cb, index, opt = pack_args(...)
   local mem, del
@@ -478,17 +507,11 @@ function GsmModem:read_sms(...)
 
   local function do_read(self, err)
     if err then return cb(self, err) end
-    self:cmd():CMGR(index, function(self, err, pdu, stat, address, scts)
+    self:cmd():CMGR(index, function(self, err, pdu, stat, ...)
       if err then return cb(self, err) end
 
-      local sms
-
-      if type(stat) == 'string' then
-        sms = SMSMessage.new(address, pdu)
-        sms:set_type(MESSAGE_STATUS[stat])
-      else
-        sms = SMSMessage.new():decode_pdu(pdu, stat)
-      end
+      local sms, err = DecodeSms(pdu, stat, ...)
+      if not sms then return cb(self, err) end
 
       sms:set_index(index)
       if mem then
@@ -599,9 +622,9 @@ function SMSMessage:decode_pdu(pdu, state)
     self._smsc_date       = ts2date(pdu.scts)    -- Date of SMSC response in DeliveryReport messages (pdu.scts)
   end
 
-  self._memory            = nil                 -- For saved SMS: where exactly it's saved (SIM/phone)
-  self._location          = nil                 -- For saved SMS: location of SMS in memory.
-  self._state             = nil                 -- Status (read/unread/...) of SMS message.
+  self._storage           = nil                -- For saved SMS: where exactly it's saved (SIM/phone)
+  self._index             = nil                -- For saved SMS: location of SMS in memory.
+  self._state             = nil                -- For saved SMS: Status (read/unread/...) of SMS message.
 
   local concatUdh = find_udh(pdu.udh, 0x00, 0x80)
   if concatUdh and concatUdh.cnt > 1 then
