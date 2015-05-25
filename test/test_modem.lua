@@ -348,6 +348,70 @@ it('read truncated sms ', function()
   assert_true(q:empty())
 end)
 
+it('iterare over all sms', function()
+  local Stream, q = MakeStream{
+    {
+      'AT+CMGL=4\r\n',
+      '+CMGL: 1,1,,26'
+      .. '\r\n' ..
+      '07919761989901F0240B917777777777F70000514042314545210720A83C6D2FD301'
+      .. '\r\n' .. 
+      '+CMGL: 3,1,,26'
+      .. '\r\n' .. 
+      '07919761989901F0240B917777777777F70000514042314545210720A8'
+      .. -- NO EOL
+      '+CMGL: 6,1,,26'
+      .. '\r\n' .. 
+      '07919761989901F0240B917777777777F70000514042314545210720A83C6D2FD301'
+       .. '\r\nOK\r\n'
+    },
+  }
+
+  local modem = GsmModem.new(Stream)
+
+  modem:open(function(self, ...)
+    self:each_sms(function(self, err, index, sms_err, sms, total, last)
+      assert_equal(self, modem)
+      assert_nil  (err)
+      assert_equal(3, total)
+      assert_boolean(3, last)
+
+      if index == 1 then
+        assert_equal(1, called())
+        assert_false(last)
+        assert(sms)
+        assert_nil(sms_err)
+        assert_equal('+77777777777', sms:number())
+        assert_equal(' Privet',      sms:text())
+      end
+
+      if index == 3 then
+        assert_equal(2, called())
+        assert_false(last)
+        assert_nil(sms)
+        assert(sms_err)
+        assert_equal('EPROTO', sms_err:name())
+      end
+
+      if index == 6 then
+        assert_equal(3, called())
+        assert_true(last)
+        assert(sms)
+        assert_nil(sms_err)
+        assert_equal('+77777777777', sms:number())
+        assert_equal(' Privet',      sms:text())
+        self:close()
+      end
+
+    end)
+  end)
+
+  uv.run(debug.traceback)
+
+  assert_equal(3, called(0))
+  assert_true(q:empty())
+end)
+
 end
 
 local _ENV = TEST_CASE'send_sms/wait_delivery_report' if ENABLE then

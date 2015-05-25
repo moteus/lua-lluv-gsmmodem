@@ -38,7 +38,7 @@ local function DecodeSms(pdu, stat, ...)
 
   local len = ...
   local t, e = tpdu.Decode(pdu,
-    (state == REC_UNREAD or state == REC_READ) and 'input' or 'output',
+    (stat == REC_UNREAD or stat == REC_READ) and 'input' or 'output',
     len
   )
 
@@ -557,6 +557,22 @@ function GsmModem:delete_sms(...)
   else
     self:cmd():CMGD(index, cb)
   end
+end
+
+function GsmModem:each_sms(...)
+  local cb, status, opt = pack_args(...)
+
+  self:cmd():CMGL(status, function(self, err, pdus)
+    if err then return cb(self, err) end
+    for i = 1, #pdus do
+      local t = pdus[i]
+      local index, pdu, stat, len = t[1], t[2], t[3], t[4]
+      local sms, err = DecodeSms(pdu, stat, len)
+      if not sms then cb(self, nil, index, err, nil, #pdus, i == #pdus)
+      else cb(self, nil, index, nil, sms, #pdus, i == #pdus) end
+    end
+  end)
+
 end
 
 end

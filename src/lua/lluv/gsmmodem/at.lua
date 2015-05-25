@@ -688,6 +688,7 @@ function ATCommander:CMGL(...)
   -- Note there no EOL after trancated pdu. So this method just return trancated PDU.
 
   local cb, stat, timeout = pack_args(...)
+  stat = stat or 4
 
   assert(type(stat) == 'number', 'Support only PDU mode')
 
