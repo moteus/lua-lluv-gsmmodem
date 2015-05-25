@@ -410,6 +410,62 @@ end
 
 end
 
+it('CMGL should read truncated pdus',function()
+  stream:on_command(function(self, cmd)
+    assert_equal(1, called())
+    assert_equal('AT+CMGL=4\r\n', cmd)
+  end)
+
+  assert_true(command:CMGL(4, function(self, err, messages)
+    assert_equal(2, called())
+    assert_nil(err)
+    assert_table(messages)
+    assert_equal(3, #messages)
+
+    local msg = messages[1] do
+      local index, pdu, stat, len = msg[1], msg[2], msg[3], msg[4]
+      assert_equal(1,  index)
+      assert_equal(1,  stat)
+      assert_equal(26, len)
+      assert_equal('07919761989901F0240B917777777777F70000514042314545210720A83C6D2FD301', pdu)
+    end
+
+    local msg = messages[2] do
+      local index, pdu, stat, len = msg[1], msg[2], msg[3], msg[4]
+      assert_equal(3,  index)
+      assert_equal(1,  stat)
+      assert_equal(26, len)
+      assert_equal('07919761989901F0240B917777777777F70000514042314545210720A8', pdu)
+    end
+
+    local msg = messages[3] do
+      local index, pdu, stat, len = msg[1], msg[2], msg[3], msg[4]
+      assert_equal(6,  index)
+      assert_equal(1,  stat)
+      assert_equal(26, len)
+      assert_equal('07919761989901F0240B917777777777F70000514042314545210720A83C6D2FD301', pdu)
+    end
+
+  end))
+
+  stream
+    :append'+CMGL: 1,1,,26'
+    :append(EOL)
+    :append'07919761989901F0240B917777777777F70000514042314545210720A83C6D2FD301'
+    :append(EOL)
+    :append'+CMGL: 3,1,,26'
+    :append(EOL)
+    :append'07919761989901F0240B917777777777F70000514042314545210720A8'
+     -- NO EOL
+    :append'+CMGL: 6,1,,26'
+    :append(EOL)
+    :append'07919761989901F0240B917777777777F70000514042314545210720A83C6D2FD301'
+    :append(OK)
+  :execute()
+
+  assert_equal(2, called(0))
+end)
+
 end
 
 local _ENV = TEST_CASE'split args/list' if ENABLE then
@@ -537,5 +593,7 @@ it('Guess CMT pdu mode', function()
 end)
 
 end
+
+
 
 RUN()

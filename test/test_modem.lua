@@ -321,6 +321,33 @@ it('read sms in text mode', function()
   assert_true(q:empty())
 end)
 
+it('read truncated sms ', function()
+  local Stream, q = MakeStream{
+    {
+      'AT+CMGR=11\r\n',
+      '\r\n+CMGR: 0,,26\r\n07919761989901F0240B917777777777F700005150225163642108AE30F9AC\r\n\r\nOK\r\n'
+    },
+  }
+
+  local modem = GsmModem.new(Stream)
+
+  modem:open(function(self, ...)
+    self:read_sms(11, {delete = true}, function(self, err, sms, del)
+      assert_equal(1, called())
+      assert_equal(self, modem)
+      assert      (err)
+      assert_nil  (sms)
+
+      self:close()
+    end)
+  end)
+
+  uv.run()
+
+  assert_equal(1, called(0))
+  assert_true(q:empty())
+end)
+
 end
 
 local _ENV = TEST_CASE'send_sms/wait_delivery_report' if ENABLE then
