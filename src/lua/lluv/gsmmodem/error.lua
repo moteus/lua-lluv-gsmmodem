@@ -227,7 +227,7 @@ function ATError:no()   return self._no    end
 
 function ATError:name() return self._name end
 
-function ATError:msg()  
+function ATError:msg()
   local t = AT_ERROR[self._name]
   local msg
   if t then msg = t[self._no] end

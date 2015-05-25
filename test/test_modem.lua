@@ -3,7 +3,7 @@ package.path = "..\\src\\lua\\?.lua;" .. package.path
 local utils     = require "utils"
 local TEST_CASE = require "lunit".TEST_CASE
 
-local debug = debug
+local debug, print = debug, print
 
 local RUN               = utils.RUN
 local IT, CMD, PASS     = utils.IT, utils.CMD, utils.PASS
@@ -378,6 +378,46 @@ it('wait final response', function()
   uv.run()
 
   assert_equal(1, called(0))
+end)
+
+it('wait timeout', function()
+  Stream = MakeStream{
+    {
+      'AT+CMGS=18\r\n',
+      '\r> ',
+    };
+    {
+      '0021010B917777777777F7000005E8329BFD06\26',
+      'AT+CMGS=18\r\n+CMGS: 38,\r\n\r\nOK\r\n'
+    };
+  }
+
+  local modem = GsmModem.new(Stream)
+
+  local watchdog = uv.timer():start(10000, function()
+    uv.stop(true)
+  end)
+
+  local timeout1 = uv.timer():start(1000, function()
+    assert_equal(1, called())
+  end)
+
+  modem:open(function()
+    modem:send_sms('+77777777777', 'hello', {waitReport = 'any', timeout = 2000}, function(self, err, ref)
+      assert_equal(2, called())
+      assert_equal(self, modem)
+      assert(err)
+      assert(err:name() == 'TIMEOUT')
+      assert_equal(ref, 38)
+      self:close()
+      watchdog:close()
+    end)
+  end)
+
+
+  uv.run()
+
+  assert_equal(2, called(0))
 end)
 
 end

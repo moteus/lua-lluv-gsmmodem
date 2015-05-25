@@ -108,11 +108,6 @@ function GsmModem:configure(cb)
   chain = {
     function() command:raw("\26", 5000, next_fn) end;
 
-    function() command:ATZ(5000, function(this, err, data)
-      if err then return cb(this, err, 'ATZ', data) end
-      next_fn()
-    end) end;
-
     function() self:at_wait(30, function(self, err, data)
       if err then return cb(this, err, 'AT', data) end
       next_fn()
@@ -212,15 +207,16 @@ function GsmModem:on_recv_sms(handler)
   local typ = URC_TYPS_INVERT['on_recv_sms']
   if not handler then self._urc[typ] = nil else
     self._urc[typ] = function(self, typ, mode, ...)
-      local sms
+      local sms, err
       if mode then
         local text, number = ...
-        sms = SMSMessage.new(number, text)
+        sms, err = SMSMessage.new(number, text)
       else
-        local pdu = ...
-        sms = SMSMessage.new():decode_pdu(pdu, REC_UNREAD)
+        local pdu, len = ...
+        sms, err = SMSMessage.new():decode_pdu(pdu, REC_UNREAD, len)
       end
-      handler(self, sms)
+      --! @todo handle error
+      if sms then handler(self, sms) end
     end
   end
 
@@ -247,7 +243,7 @@ function GsmModem:on_recv_status(handler)
   local typ = URC_TYPS_INVERT['on_recv_status']
   if not handler then self._urc[typ] = nil else
     self._urc[typ] = function(self, typ, mode, ...)
-      local sms
+      local sms, err
       if mode then
         local ref, status, number = ...
         sms = SMSMessage.new()
@@ -256,10 +252,11 @@ function GsmModem:on_recv_status(handler)
           :set_delivery_status(status)
           :set_number(number)
       else
-        local pdu = ...
-        sms = SMSMessage.new():decode_pdu(pdu, REC_UNREAD)
+        local pdu, len = ...
+        sms, err = SMSMessage.new():decode_pdu(pdu, REC_UNREAD, len)
       end
-      handler(self, sms)
+      --! @todo handle error
+      if sms then handler(self, sms) end
     end
   end
 
@@ -311,6 +308,7 @@ local function remove_wait_ref(self, ref, status)
   end
 
   if not (ctx.progress  or next(ctx.set)) then
+    if ctx.timer then ctx.timer:close() end
     local ref, ret = ctx.ref, ctx.ret
     return ctx.cb(self, nil, ref, ret[ref] or ret)
   end
@@ -326,6 +324,16 @@ local function register_wait_ref(self, ref, ctx)
   ctx.set[ref]        = true
 end
 
+local function wait_timeout(self, ctx)
+  ctx.timer:close()
+
+  for ref in pairs(ctx.set) do
+    self._cds_wait[ref] = nil
+  end
+
+  return ctx.cb(self, Error'TIMEOUT', ref)
+end
+
 function GsmModem:_on_cds_check(typ, mode, ...)
   local ref, status, number
   if mode then
@@ -333,7 +341,8 @@ function GsmModem:_on_cds_check(typ, mode, ...)
     status = tpdu._DecodeStatus(status)
   else
     local pdu, len = ...
-    pdu = tpdu.Decode(pdu, 'input')
+    pdu = tpdu.Decode(pdu, 'input', len)
+    --! @todo handle error
     if not (pdu or pdu.mr or pdu.status) then return end
     ref, status, number = pdu.mr, pdu.status, pdu.addr
   end
@@ -357,7 +366,7 @@ function GsmModem:send_sms(...)
 
   local waitCds = opt and opt.waitReport
 
-  local wait_ctx = waitCds and {
+  local wait_ctx wait_ctx = waitCds and {
     set      = {};
     ret      = {};
     cb       = cb;
@@ -374,6 +383,9 @@ function GsmModem:send_sms(...)
       if not waitCds then return cb(self, nil, ref) end
 
       register_wait_ref(self, ref, wait_ctx)
+      wait_ctx.timer    = opt and opt.timeout and uv.timer():start(opt.timeout, function()
+        wait_timeout(self, wait_ctx)
+      end)
       wait_ctx.ref      = ref
       wait_ctx.progress = nil
     end)
@@ -402,6 +414,10 @@ function GsmModem:send_sms(...)
             end
             return cb(self, send_err, res)
           end
+
+          wait_ctx.timer    = opt and opt.timeout and uv.timer():start(opt.timeout, function()
+            wait_timeout(self, wait_ctx)
+          end)
         end
       end)
     end
