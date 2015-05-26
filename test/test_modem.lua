@@ -427,16 +427,16 @@ it('iterare over all sms', function()
   local modem = GsmModem.new(Stream)
 
   modem:open(function(self, ...)
-    self:each_sms(function(self, err, index, sms_err, sms, total, last)
+    self:each_sms(function(self, err, index, sms, total, last)
       assert_equal(self, modem)
-      assert_nil  (err)
       assert_equal(3, total)
       assert_boolean(last)
 
       if index == 1 then
         assert_equal(1, called())
+        assert_nil  (err)
         assert_false(last)
-        assert(sms)
+        assert_not_nil(sms)
         assert_nil(sms_err)
         assert_equal('+77777777777', sms:number())
         assert_equal(' Privet',      sms:text())
@@ -444,16 +444,17 @@ it('iterare over all sms', function()
 
       if index == 3 then
         assert_equal(2, called())
+        assert_not_nil(err)
         assert_false(last)
         assert_nil(sms)
-        assert(sms_err)
-        assert_equal('EPROTO', sms_err:name())
+        assert_equal('EPROTO', err:name())
       end
 
       if index == 6 then
         assert_equal(3, called())
+        assert_nil  (err)
         assert_true(last)
-        assert(sms)
+        assert_not_nil(sms)
         assert_nil(sms_err)
         assert_equal('+77777777777', sms:number())
         assert_equal(' Privet',      sms:text())

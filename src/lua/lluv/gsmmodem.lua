@@ -574,16 +574,20 @@ end
 
 function GsmModem:each_sms(...)
   local cb, status, opt = pack_args(...)
+  if type(status) == 'table' then
+    opt, status = status
+  end
+
   local mem = opt and opt.memory
 
   local function do_each(self, err, pdus)
     if err then return cb(self, err) end
-    for i = 1, #pdus do
+    local total = #pdus
+    for i = 1, total do
       local t = pdus[i]
       local index, pdu, stat, len = t[1], t[2], t[3], t[4]
       local sms, err = DecodeSms(pdu, stat, len)
-      if not sms then cb(self, nil, index, err, nil, #pdus, i == #pdus)
-      else cb(self, nil, index, nil, sms, #pdus, i == #pdus) end
+      cb(self, err, index, sms, total, i == total)
     end
   end
 
@@ -843,6 +847,10 @@ end
 
 function SMSMessage:index()
   return self._index
+end
+
+function SMSMessage:date()
+  return self._date or self._smsc_date
 end
 
 end

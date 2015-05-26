@@ -448,7 +448,11 @@ function ATCommander:_basic_cmd(...)
 
   self._stream:_command_impl(self._front, self._chain, cmd, timeout, function(this, err, cmd, res, status, info)
     if err then return cb(this, err) end
-    if status ~= 'OK' then return cb(this, E(status, info)) end
+
+    if status ~= 'OK' then
+      local info = (status == 'ERROR') and (info == 'Error') and cmd or info
+      return cb(this, E(status, info))
+    end
 
     res = remove_echo(res, cmd)
 
@@ -471,7 +475,12 @@ function ATCommander:_basic_cmd_ex(...)
 
   self._stream:_command_ex_impl(self._front, self._chain, cmd, timeout1, prompt, timeout2, data, function(this, err, cmd, res, status, info)
     if err then return cb(this, err) end
-    if status ~= 'OK' then return cb(this, E(status, info)) end
+
+    if status ~= 'OK' then
+      local info = (status == 'ERROR') and (info == 'Error') and cmd or info
+      return cb(this, E(status, info))
+    end
+
     res = remove_echo(res, cmd)
 
     cb(this, nil, #res == 0 and status or res)
