@@ -22,7 +22,7 @@ dependencies = {
   "tpdu",
   "date",
   "lpeg",
-  "iconv",
+  "lua-iconv",
 }
 
 build = {

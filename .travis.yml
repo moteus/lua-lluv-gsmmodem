@@ -1,0 +1,55 @@
+language: c
+
+sudo: required
+
+env:
+  global:
+    - LUAROCKS=2.2.2
+    - ZMQ_VER=4.1
+
+  matrix:
+    - LUA=lua5.1
+    # - LUA=lua5.2 
+    # - LUA=lua5.3
+    # - LUA=luajit     # latest stable version (2.0.3)
+    # - LUA=luajit2.0  # current head of 2.0 branch
+    # - LUA=luajit2.1  # current head of 2.1 branch
+
+branches:
+  only:
+    - master
+
+before_install:
+  - source .travis/setenv_lua.sh
+  - bash .travis/setup_uv.sh
+  - bash .travis/setup_sodium.sh
+  - bash .travis/setup_zmq.sh
+  - luarocks install lzmq
+  - luarocks install lluv UV_DIR=$TRAVIS_BUILD_DIR/libuv
+  - luarocks install lluv-poll-zmq
+  - luarocks install lua-iconv
+  - luarocks install lpeg
+  - luarocks install date
+  - luarocks install luafilesystem
+  - luarocks install lua-log
+  - luarocks install luacov-coveralls
+  - luarocks install lunitx
+  - luarocks install tpdu       --from=https://luarocks.org/dev
+  - luarocks install rs232      --from=https://luarocks.org/dev
+  - luarocks install lluv-rs232 --from=https://luarocks.org/dev
+
+install:
+  - luarocks make rockspecs/lluv-gsmmodem-scm-0.rockspec
+
+script:
+  - cd test
+  - lunit.sh test_commander.lua
+  - lunit.sh test_modem.lua
+
+after_success:
+  - luacov-coveralls -j c.report.json -v
+
+notifications:
+  email:
+    on_success: change
+    on_failure: always
