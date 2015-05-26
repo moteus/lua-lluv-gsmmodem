@@ -88,11 +88,12 @@ local unquot = function(data)
   return (trim(data):match('^"?(.-)"?$'))
 end
 
-local UD_I      = 0
+local PROMPT_I  = 0
 local CMD_I     = 1
 local TIMEOUT_I = 2
 local CB_I      = 3
-local RES_I     = 4
+local CHAIN_I   = 4
+local RES_I     = 5
 
 ---------------------------------------------------------------
 local ATStream = ut.class() do
@@ -158,9 +159,9 @@ function ATStream:_read_prompt()
   if not self._has_empty_line then return end
 
   local t = self._active_queue:peek()
-  if not(t and t[UD_I]) then return end
+  if not(t and t[PROMPT_I]) then return end
 
-  local prompt = t[UD_I][1]
+  local prompt = t[PROMPT_I][1]
 
   while true do
     local ch = self._buffer:read_n(1)
@@ -176,9 +177,15 @@ end
 function ATStream:_command_done(status, info)
   local t = self._active_queue:pop()
   if self._on_done then self:_on_done() end
-  self:command() -- proceed next command
-  local msg = t[RES_I] and table.concat(t[RES_I],'\n') or ''
-  if t[CB_I] then t[CB_I](self._self, err, t[CMD_I], msg, status, info) end
+
+  if not t[CHAIN_I] then self:_command() end
+
+  if t[CB_I] then
+    local msg = t[RES_I] and table.concat(t[RES_I],'\n') or ''
+    t[CB_I](self._self, err, t[CMD_I], msg, status, info)
+  end
+
+  if t[CHAIN_I] then self:_command() end
 end
 
 local function execute_step(self, line)
@@ -219,9 +226,9 @@ local function execute_step(self, line)
       return self:_command_done(status, info)
     end
 
-    local prompt = t[UD_I]
+    local prompt = t[PROMPT_I]
     if prompt and prompt[1] == line then
-      t[UD_I] = nil
+      t[PROMPT_I] = nil
       return self:_on_command(prompt[2], prompt[3])
     end
 
@@ -248,27 +255,38 @@ function ATStream:execute()
   return self
 end
 
-function ATStream:_command(push, t)
-  if t then push(self._command_queue, t) end
+function ATStream:_busy()
+  return self._active_queue:size() ~= 0
+end
+
+function ATStream:_command(front, t)
+  if t then
+    if front then
+      self._command_queue:push_front(t)
+    else
+      self._command_queue:push_back(t)
+    end
+  end
 
   if self._on_delay then
-    return self:_on_delay()
+    if not self:_busy() then
+      self:_on_delay()
+    end
+    return
   end
 
   return self:next_command()
 end
 
-function ATStream:command(...)
+function ATStream:_command_impl(front, chain, ...)
   local cb, cmd, timeout = pack_args(...)
 
-  local t = cmd and {cmd, timeout, cb}
+  local t = cmd and {cmd, timeout, cb, chain}
 
-  return self:_command(
-    self._command_queue.push_back, t
-  )
+  return self:_command(front, t)
 end
 
-function ATStream:command_ex(...)
+function ATStream:_command_ex_impl(front, chain, ...)
   local cb, cmd, timeout1, prompt, timeout2, data = pack_args(...)
 
   if timeout1 and type(timeout1) ~= 'number' then
@@ -279,17 +297,23 @@ function ATStream:command_ex(...)
     timeout2, data = nil, timeout2
   end
 
-  local t = cmd and {cmd, timeout1, cb,
-    [UD_I] = {prompt, data, timeout2}
+  local t = cmd and {cmd, timeout1, cb, chain,
+    [PROMPT_I] = {prompt, data, timeout2}
   }
 
-  return self:_command(
-    self._command_queue.push_back, t
-  )
+  return self:_command(front, t)
+end
+
+function ATStream:command(...)
+  return self:_command_impl(false, false, ...)
+end
+
+function ATStream:command_ex(...)
+  return self:_command_ex_impl(false, false, ...)
 end
 
 function ATStream:next_command()
-  if self._active_queue:size() == 0 then
+  if not self:_busy() then
     local t = self._command_queue:pop_front()
     if t then
       self:_on_command(t[CMD_I] .. self._eol, t[TIMEOUT_I])
@@ -393,8 +417,16 @@ local MESSAGE_STATUS = {
 
 local E = Error
 
-function ATCommander:__init(stream)
+function ATCommander:__init(stream, front, chain)
   self._stream = stream
+  self._front  = front
+  self._chain  = chain
+  return self
+end
+
+function ATCommander:mode(front, chain)
+  self._front  = front
+  self._chain  = chain
   return self
 end
 
@@ -414,7 +446,7 @@ end
 function ATCommander:_basic_cmd(...)
   local cb, cmd, timeout = pack_args(...)
 
-  self._stream:command(cmd, timeout, function(this, err, cmd, res, status, info)
+  self._stream:_command_impl(self._front, self._chain, cmd, timeout, function(this, err, cmd, res, status, info)
     if err then return cb(this, err) end
     if status ~= 'OK' then return cb(this, E(status, info)) end
 
@@ -437,7 +469,7 @@ function ATCommander:_basic_cmd_ex(...)
     timeout2, data = nil, timeout2
   end
 
-  self._stream:command_ex(cmd, timeout1, prompt, timeout2, data, function(this, err, cmd, res, status, info)
+  self._stream:_command_ex_impl(self._front, self._chain, cmd, timeout1, prompt, timeout2, data, function(this, err, cmd, res, status, info)
     if err then return cb(this, err) end
     if status ~= 'OK' then return cb(this, E(status, info)) end
     res = remove_echo(res, cmd)

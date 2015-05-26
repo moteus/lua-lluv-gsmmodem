@@ -261,6 +261,63 @@ it('read sms with delete', function()
   assert_true(q:empty())
 end)
 
+it('read sms from memory with delete', function()
+  local Stream, q = MakeStream{
+    {
+      'AT+CPMS="SM"\r\n',
+      '\r\n+CPMS: 1,20,1,20,1,20\r\n\r\nOK\r\n'
+    },
+    {
+      'AT+CMGR=11\r\n',
+      '\r\n+CMGR: 0,,26\r\n07919761989901F0240B918888888888F800005150225163642108AE30F9AC6EDFE1\r\n\r\nOK\r\n'
+    },
+    {
+      'AT+CMGD=11\r\n',
+      '\r\nOK\r\n'
+    },
+
+    {
+      'AT+CPMS="ME"\r\n',
+      '\r\n+CPMS: 1,20,1,20,1,20\r\n\r\nOK\r\n'
+    },
+    {
+      'AT+CMGR=12\r\n',
+      '\r\n+CMGR: 0,,26\r\n07919761989901F0240B917777777777F700005150225163642108AE30F9AC6EDFE1\r\n\r\nOK\r\n'
+    },
+    {
+      'AT+CMGD=12\r\n',
+      '\r\nOK\r\n'
+    },
+  }
+
+  local modem = GsmModem.new(Stream)
+
+  modem:open(function(self, ...)
+    self:read_sms(11, {memory = "SM", delete = true}, function(self, err, sms, del)
+      assert_equal(1, called())
+      assert_equal(self, modem)
+      assert_nil  (err      )
+      assert_nil  (del      )
+      assert_equal("+88888888888", sms:number())
+    end)
+
+    self:read_sms(12, {memory = "ME", delete = true}, function(self, err, sms, del)
+      assert_equal(2, called())
+      assert_equal(self, modem)
+      assert_nil  (err      )
+      assert_nil  (del      )
+      assert_equal("+77777777777", sms:number())
+
+      self:close()
+    end)
+  end)
+
+  uv.run()
+
+  assert_equal(2, called(0))
+  assert_true(q:empty())
+end)
+
 it('read sms with delete fail', function()
   local Stream, q = MakeStream{
     {
@@ -342,7 +399,7 @@ it('read truncated sms ', function()
     end)
   end)
 
-  uv.run()
+  uv.run(debug.traceback)
 
   assert_equal(1, called(0))
   assert_true(q:empty())
@@ -374,7 +431,7 @@ it('iterare over all sms', function()
       assert_equal(self, modem)
       assert_nil  (err)
       assert_equal(3, total)
-      assert_boolean(3, last)
+      assert_boolean(last)
 
       if index == 1 then
         assert_equal(1, called())

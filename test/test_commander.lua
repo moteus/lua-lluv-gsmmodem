@@ -12,6 +12,7 @@ local split_list  = require "lluv.gsmmodem.utils".split_list
 local decode_list = require "lluv.gsmmodem.utils".decode_list
 
 local pcall, error, type, table, ipairs, print, tonumber = pcall, error, type, table, ipairs, print, tonumber
+local tostring = tostring
 local RUN = utils.RUN
 local IT, CMD, PASS = utils.IT, utils.CMD, utils.PASS
 local nreturn, is_equal = utils.nreturn, utils.is_equal
@@ -29,17 +30,18 @@ end
 
 local ENABLE = true
 
-local _ENV = TEST_CASE'command encoder/decoder' if ENABLE then
-
-local it = IT(_ENV or _M)
-
-local stream, command, call_count
-local SELF = {}
+local SELF, call_count = {}
 
 local function called(n)
   call_count = call_count + (n or 1)
   return call_count
 end
+
+local _ENV = TEST_CASE'command encoder/decoder' if ENABLE then
+
+local it = IT(_ENV or _M)
+
+local stream, command
 
 function setup()
   stream  = assert(at.Stream(SELF))
@@ -594,6 +596,88 @@ end)
 
 end
 
+local _ENV = TEST_CASE'chain/front commands' if ENABLE then
 
+local it = IT(_ENV or _M)
+
+local stream, command
+
+function setup()
+  stream  = assert(at.Stream())
+  command = assert(at.Commander(stream))
+  call_count = 0
+end
+
+it("no front command", function()
+  local no = 0
+
+  stream:on_command(function(self, cmd)
+    assert_equal('AT#' .. tostring(called()) .. '\r\n', cmd)
+  end)
+
+  command:mode():at("#1")
+  command:mode():at("#2")
+  command:mode():at("#3")
+
+  assert_equal(stream, stream:append(OK:rep(3)))
+  assert_equal(stream, stream:execute())
+
+  assert_equal(3, called(0))
+end)
+
+it("front command", function()
+  local no = 0
+
+  stream:on_command(function(self, cmd)
+    assert_equal('AT#' .. tostring(called()) .. '\r\n', cmd)
+  end)
+
+  command:mode(true):at("#1")
+  command:mode(true):at("#3")
+  command:mode(true):at("#2")
+
+  assert_equal(stream, stream:append(OK:rep(3)))
+  assert_equal(stream, stream:execute())
+
+  assert_equal(3, called(0))
+end)
+
+it("no chain command", function()
+  local no = 0
+
+  stream:on_command(function(self, cmd)
+    assert_equal('AT#' .. tostring(called()) .. '\r\n', cmd)
+  end)
+
+  command:mode():at("#1", function(self, err, status)
+    command:mode(true):at("#3")
+  end)
+  command:mode():at("#2")
+
+  assert_equal(stream, stream:append(OK:rep(3)))
+  assert_equal(stream, stream:execute())
+
+  assert_equal(3, called(0))
+end)
+
+it("chain command", function()
+  local no = 0
+
+  stream:on_command(function(self, cmd)
+    assert_equal('AT#' .. tostring(called()) .. '\r\n', cmd)
+  end)
+
+  command:mode(false, true):at("#1", function(self, err, status)
+    command:mode(true):at("#2")
+  end)
+  command:mode():at("#3")
+
+  assert_equal(stream, stream:append(OK:rep(3)))
+  assert_equal(stream, stream:execute())
+
+  assert_equal(3, called(0))
+end)
+
+end
 
 RUN()

@@ -92,16 +92,26 @@ function GsmModem:__init(...)
     stream:next_command()
   end):stop()
 
-  stream:on_command(function(self, cmd, timeout)
-    device:write(cmd)
-    cmdTimeout:again(timeout or DEFAULT_COMMAND_TIMEOUT)
+  stream:on_command(function(stream, cmd, timeout)
+    if self._device then
+      self._device:write(cmd)
+      self._cmd_timer:again(timeout or DEFAULT_COMMAND_TIMEOUT)
+    end
   end)
 
   -- Stop timeout timer
-  stream:on_done(function() cmdTimeout:stop() end)
+  stream:on_done(function()
+    if self._cmd_timer then
+      self._cmd_timer:stop()
+    end
+  end)
 
   -- Wait before send out command
-  stream:on_delay(function() cmdSendTimer:again() end)
+  stream:on_delay(function()
+    if self._snd_timer then
+      self._snd_timer:again()
+    end
+  end)
 
   self._device    = device
   self._stream    = stream
@@ -127,8 +137,8 @@ function GsmModem:__init(...)
   return self
 end
 
-function GsmModem:cmd()
-  return self._command
+function GsmModem:cmd(front, chain)
+  return self._command:mode(front, chain)
 end
 
 function GsmModem:configure(cb)
@@ -219,7 +229,7 @@ function GsmModem:close(cb)
     self._cmd_timer:close()
     self._snd_timer:close()
     self._device:close(cb)
-    self._device = nil
+    self._device, self._cmd_timer, self._snd_timer = nil
   end
 end
 
@@ -507,7 +517,10 @@ function GsmModem:read_sms(...)
 
   local function do_read(self, err)
     if err then return cb(self, err) end
-    self:cmd():CMGR(index, function(self, err, pdu, stat, ...)
+
+    local front, chain = not not mem, not not del
+
+    self:cmd(front, chain):CMGR(index, function(self, err, pdu, stat, ...)
       if err then return cb(self, err) end
 
       local sms, err = DecodeSms(pdu, stat, ...)
@@ -519,7 +532,7 @@ function GsmModem:read_sms(...)
       end
 
       if del then
-        return self:cmd():CMGD(index, function(self, err)
+        return self:cmd(true):CMGD(index, function(self, err)
           cb(self, nil, sms, err)
         end)
       end
@@ -529,7 +542,7 @@ function GsmModem:read_sms(...)
   end
 
   if mem then
-    self:cmd():at('+CPMS="' .. mem .. '"', do_read)
+    self:cmd(false, true):at('+CPMS="' .. mem .. '"', do_read)
   else
     do_read(self)
   end
@@ -550,9 +563,9 @@ function GsmModem:delete_sms(...)
   end
 
   if mem then
-    self:cmd():at('+CPMS="' .. mem .. '"', function(self, err)
+    self:cmd(false, true):at('+CPMS="' .. mem .. '"', function(self, err)
       if err then return cb(self, err) end
-      self:cmd():CMGD(index, cb)
+      self:cmd(true):CMGD(index, cb)
     end)
   else
     self:cmd():CMGD(index, cb)
@@ -561,8 +574,9 @@ end
 
 function GsmModem:each_sms(...)
   local cb, status, opt = pack_args(...)
+  local mem = opt and opt.memory
 
-  self:cmd():CMGL(status, function(self, err, pdus)
+  local function do_each(self, err, pdus)
     if err then return cb(self, err) end
     for i = 1, #pdus do
       local t = pdus[i]
@@ -571,7 +585,16 @@ function GsmModem:each_sms(...)
       if not sms then cb(self, nil, index, err, nil, #pdus, i == #pdus)
       else cb(self, nil, index, nil, sms, #pdus, i == #pdus) end
     end
-  end)
+  end
+
+  if mem then
+    self:cmd(false, true):at('+CPMS="' .. mem .. '"', function(self, err)
+      if err then return cb(self, err) end
+      self:cmd(true):CMGL(status, do_each)
+    end)
+  else
+    self:cmd():CMGL(status, do_each)
+  end
 
 end
 
