@@ -22,8 +22,9 @@ branches:
 before_install:
   - source .travis/setenv_lua.sh
   - bash .travis/setup_uv.sh
-  - bash .travis/setup_sodium.sh
-  - bash .travis/setup_zmq.sh
+  # - bash .travis/setup_sodium.sh
+  # - bash .travis/setup_zmq.sh
+  - sudo apt-get install libzmq3-dev
   - luarocks install lluv UV_DIR=$TRAVIS_BUILD_DIR/libuv
   - luarocks install tpdu       --from=https://luarocks.org/dev
   - luarocks install rs232      --from=https://luarocks.org/dev
@@ -40,7 +41,7 @@ script:
   - lunit.sh test_modem.lua
 
 after_success:
-  - luacov-coveralls -j c.report.json -v
+  - luacov-coveralls -v
 
 notifications:
   email:
