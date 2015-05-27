@@ -21,18 +21,16 @@ end
 
 device:on_recv_sms(on_sms)
 
+device:on_call(on_call)
+
 device:on_save_sms(function(self, index, mem)
-  self:read_sms(index, {delete=true}, function(self, err, sms, del_err)
+  self:read_sms(index, {delete=true, memory = mem}, function(self, err, sms, del_err)
     if err then
       return print("Error read sms:", err)
     end
 
     on_sms(self, sms, del_err)
   end)
-end)
-
-device:on_call(function(self, ani)
-  on_call(self, ani)
 end)
 
 device:on_boot(function(self)
