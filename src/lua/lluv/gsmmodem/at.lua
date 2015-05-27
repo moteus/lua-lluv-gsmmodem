@@ -533,9 +533,9 @@ function ATCommander:MemoryStatus(...)
   -- mem2 - to write and send (cmgw/cmss)
   -- mem3 - to store new sms  (cmti/cdsi)
   --
-  -- SM — SIM memory
-  -- ME — Device memory
-  -- MT — SIM+Device memory
+  -- SM â€” SIM memory
+  -- ME â€” Device memory
+  -- MT â€” SIM+Device memory
 
   local cb, timeout = pack_args(...)
   return self:_basic_cmd('AT+CPMS?', timeout, function(this, err, info)
