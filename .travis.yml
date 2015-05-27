@@ -24,19 +24,12 @@ before_install:
   - bash .travis/setup_uv.sh
   - bash .travis/setup_sodium.sh
   - bash .travis/setup_zmq.sh
-  - luarocks install lzmq
   - luarocks install lluv UV_DIR=$TRAVIS_BUILD_DIR/libuv
-  - luarocks install lluv-poll-zmq
-  - luarocks install lua-iconv
-  - luarocks install lpeg
-  - luarocks install date
-  - luarocks install luafilesystem
-  - luarocks install lua-log
-  - luarocks install luacov-coveralls
-  - luarocks install lunitx
   - luarocks install tpdu       --from=https://luarocks.org/dev
   - luarocks install rs232      --from=https://luarocks.org/dev
   - luarocks install lluv-rs232 --from=https://luarocks.org/dev
+  - luarocks install luacov-coveralls
+  - luarocks install lunitx
 
 install:
   - luarocks make rockspecs/lluv-gsmmodem-scm-0.rockspec

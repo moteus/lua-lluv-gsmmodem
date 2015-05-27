@@ -1,6 +1,6 @@
 package.path = "..\\src\\lua\\?.lua;" .. package.path
 
--- pcall(require, "luacov")
+pcall(require, "luacov")
 
 local ut        = require "lluv.utils"
 local at        = require "lluv.gsmmodem.at"
