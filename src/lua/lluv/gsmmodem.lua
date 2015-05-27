@@ -121,6 +121,7 @@ function GsmModem:__init(...)
   self._urc       = {}
   self._cds_wait  = {}
   self._reference = 0
+  self._memory    = {}
 
   stream:on_message(function(this, typ, msg, info)
     local fn = self._urc['*']
@@ -142,7 +143,7 @@ function GsmModem:cmd(front, chain)
 end
 
 function GsmModem:configure(cb)
-  local command = self:cmd()
+  local command = self:cmd(true, true)
   local chain
 
   local function next_fn()
@@ -186,6 +187,13 @@ function GsmModem:configure(cb)
 
     function() command:at('+CSCS="IRA"', function(this, err, data)
       if err then return cb(this, err, 'CSCS', data) end
+      next_fn()
+    end) end;
+
+    function() command:MemoryStatus(function(this, err, mem1, mem2, mem3)
+      if mem1 then self._mem1 = mem1[1] self._memory[mem1[1]] = mem1 end
+      if mem2 then self._mem2 = mem2[1] self._memory[mem2[1]] = mem2 end
+      if mem3 then self._mem3 = mem3[1] self._memory[mem3[1]] = mem3 end
       next_fn()
     end) end;
   }
@@ -396,6 +404,34 @@ function GsmModem:_on_cds_check(typ, mode, ...)
   remove_wait_ref(self, ref, status, number)
 end
 
+local function set_memory_info(self, typ, mem, used, total)
+  if mem then
+    local m = self._memory[mem]
+    if m then m[2], m[3] = used, total else self._memory[mem] = {mem, used, total} end
+    self[typ] = mem
+  elseif self[typ] then
+    local m = assert(self._memory[self[typ]])
+    m[2], m[3] = used, total
+  end
+end
+
+function GsmModem:_set_sms_memory(front, chain, ...)
+  local cb, mem1, mem2, mem3 = pack_args(...)
+  self:cmd(front, chain):SetSmsMemory(mem1, mem2, mem3, function(self, err, u1, t1, u2, t2, u3, t3)
+    if err then return cb(self, err) end
+
+    set_memory_info(self, '_mem1', mem1, u1, t1)
+    set_memory_info(self, '_mem2', mem2, u2, t2)
+    set_memory_info(self, '_mem3', mem3, u3, t3)
+
+    cb(self, err, u1, t1, u2, t2, u3, t3)
+  end)
+end
+
+function GsmModem:set_sms_memory(...)
+  return self:_set_sms_memory(false, false, ...)
+end
+
 function GsmModem:send_sms(...)
   local cb, number, text, opt = pack_args(...)
   text = text or ''
@@ -527,9 +563,9 @@ function GsmModem:read_sms(...)
       if not sms then return cb(self, err) end
 
       sms:set_index(index)
-      if mem then
-        sms:set_storage(mem)
-      end
+      sms:set_storage(mem or self._mem1)
+
+      if mem then assert(mem == self._mem1) end
 
       if del then
         return self:cmd(true):CMGD(index, function(self, err)
@@ -542,7 +578,7 @@ function GsmModem:read_sms(...)
   end
 
   if mem then
-    self:cmd(false, true):at('+CPMS="' .. mem .. '"', do_read)
+    self:_set_sms_memory(false, true, mem, do_read)
   else
     do_read(self)
   end
@@ -563,7 +599,7 @@ function GsmModem:delete_sms(...)
   end
 
   if mem then
-    self:cmd(false, true):at('+CPMS="' .. mem .. '"', function(self, err)
+    self:_set_sms_memory(false, true, mem, function(self, err)
       if err then return cb(self, err) end
       self:cmd(true):CMGD(index, cb)
     end)
@@ -587,12 +623,17 @@ function GsmModem:each_sms(...)
       local t = pdus[i]
       local index, pdu, stat, len = t[1], t[2], t[3], t[4]
       local sms, err = DecodeSms(pdu, stat, len)
+      if sms then
+        sms:set_index(index)
+        sms:set_storage(mem or self._mem1)
+        if mem then assert(mem == self._mem1) end
+      end
       cb(self, err, index, sms, total, i == total)
     end
   end
 
   if mem then
-    self:cmd(false, true):at('+CPMS="' .. mem .. '"', function(self, err)
+    self:_set_sms_memory(false, true, mem, function(self, err)
       if err then return cb(self, err) end
       self:cmd(true):CMGL(status, do_each)
     end)

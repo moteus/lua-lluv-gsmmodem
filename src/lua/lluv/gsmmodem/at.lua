@@ -533,9 +533,9 @@ function ATCommander:MemoryStatus(...)
   -- mem2 - to write and send (cmgw/cmss)
   -- mem3 - to store new sms  (cmti/cdsi)
   --
-  -- SM — SIM memory
-  -- ME — Device memory
-  -- MT — SIM+Device memory
+  -- SM - SIM memory
+  -- ME - Device memory
+  -- MT - SIM+Device memory
 
   local cb, timeout = pack_args(...)
   return self:_basic_cmd('AT+CPMS?', timeout, function(this, err, info)
@@ -552,6 +552,31 @@ function ATCommander:MemoryStatus(...)
     local mem3 = str[1] and #str[1] > 0 and {str[7], tonumber(str[8]), tonumber(str[9])} or nil
 
     cb(this, nil, mem1, mem2, mem3)
+  end)
+end
+
+function ATCommander:SetSmsMemory(...)
+  local cb, mem1, mem2, mem3, timeout = pack_args(...)
+  if type(mem3) == 'number' then timeout, mem3 = mem3
+  elseif type(mem2) == 'number' then timeout, mem3, mem2 = mem2 end
+
+  local cmd
+  if mem3 then     cmd = string.format('AT+CPMS="%s","%s","%s"', mem1, mem2, mem3)
+  elseif mem2 then cmd = string.format('AT+CPMS="%s","%s"', mem1, mem2)
+  else             cmd = string.format('AT+CPMS="%s"', mem1) end
+
+  return self:_basic_cmd(cmd, timeout, function(this, err, info)
+    if err then return cb(this, err, info) end
+
+    local str = info:match("^%+CPMS: (.+)$")
+    if not str then return cb(this, E('EPROTO', nil, info)) end
+
+    str = split_args(str)
+    if not str then return cb(this, E('EPROTO', nil, info)) end
+
+    for i = 1, #str do str[i] = tonumber(str[i]) end
+
+    cb(this, nil, unpack(str, 1, 6))
   end)
 end
 

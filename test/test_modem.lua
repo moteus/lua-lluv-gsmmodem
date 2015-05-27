@@ -679,6 +679,7 @@ it('iterare over all sms', function()
         assert_nil(sms_err)
         assert_equal('+77777777777', sms:number())
         assert_equal(' Privet',      sms:text())
+        assert_equal(index, sms:index())
       end
 
       if index == 3 then
@@ -697,6 +698,7 @@ it('iterare over all sms', function()
         assert_nil(sms_err)
         assert_equal('+77777777777', sms:number())
         assert_equal(' Privet',      sms:text())
+        assert_equal(index, sms:index())
         self:close()
       end
 
