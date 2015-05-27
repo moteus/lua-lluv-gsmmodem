@@ -217,6 +217,243 @@ it('multipart sms', function()
   assert_equal(1, called(0))
 end)
 
+it('multipart sms with delivery report #1', function()
+  local Stream = MakeStream{
+    {
+      'AT+CMGS=153\r\n',
+      '\r> ',
+    };
+    {
+      '0061010B917777777777F70000A0050003010301D06536FB8D2EB3D96F7499CD7EA3CB6CF61B5D66B3DFE8329BFD4697D9EC37BACC66BFD16536FB8D2EB3D96F7499CD7EA3CB6CF61B5D66B3DFE8329BFD4697D9EC37BACC66BFD16536FB8D2EB3D96F7499CD7EA3CB6CF61B5D66B3DFE8329BFD4697D9EC37BACC66BFD16536FB8D2EB3D96F7499CD7EA3CB6CF61B5D66B3DFE8329BFD4697D9\026',
+      'AT+CMGS=153\r\n+CMGS: 1,\r\n\r\nOK\r\n'
+    };
+
+    {
+      'AT+CMGS=153\r\n',
+      '\r> ',
+    };
+    {
+      '0061010B917777777777F70000A0050003010302D86F7499CD7EA3CB6CF61B5D66B3DFE8329BFD4697D9EC37BACC66BFD16536FB8D2EB3D96F7499CD7EA3CB6CF61B5D66B3DFE8329BFD4697D9EC37BACC66BFD16536FB8D2EB3D96F7499CD7EA3CB6CF61B5D66B3DFE8329BFD4697D9EC37BACC66BFD16536FB8D2EB3D96F7499CD7EA3CB6CF61B5D66B3DFE8329BFD4697D9EC37BACC66BFD1\026',
+      'AT+CMGS=153\r\n+CMGS: 2,\r\n\r\nOK\r\n'
+    };
+
+    {
+      'AT+CMGS=58\r\n',
+      '\r> ',
+    };
+    {
+      '0061010B917777777777F7000033050003010303CA6CF61B5D66B3DFE8329BFD4697D9EC37BACC66BFD16536FB8D2EB3D96F7499CD7EA3CB6CF61B\026',
+      'AT+CMGS=58\r\n+CMGS: 3,\r\n\r\nOK\r\n'
+    };
+
+    function(stream)
+      stream:moc_write('\r\n+CDS: 25\r\n')
+      stream:moc_write('07919761989901F006' .. '01' .. '0B917777777777F75150121183832151501211346521' .. '46' .. '\r\n')
+    end;
+
+    function(stream)
+      stream:moc_write('\r\n+CDS: 25\r\n')
+      stream:moc_write('07919761989901F006' .. '02' .. '0B917777777777F75150121183832151501211346521' .. '46' .. '\r\n')
+    end;
+
+    function(stream)
+      stream:moc_write('\r\n+CDS: 25\r\n')
+      stream:moc_write('07919761989901F006' .. '03' .. '0B917777777777F75150121183832151501211346521' .. '46' .. '\r\n')
+    end;
+  }
+
+  local modem = GsmModem.new(Stream)
+
+  local watchdog = uv.timer():start(5000, function()
+    uv.stop()
+  end)
+
+  modem:open(function(self, ...)
+    self:send_sms('+77777777777', ('hello'):rep(70), {waitReport = true}, function(self, err, ref, res)
+      assert_equal(1, called())
+      assert_equal(self, modem)
+      assert_nil  (err      )
+      assert_table(ref      )
+      assert_table(res      )
+
+      for i = 1, 3 do
+        assert_equal(i, ref[i])
+        local status = assert_table(res[ref[i]])
+        assert_false(status.success)
+        assert_equal(70, status.status)
+        assert_false(status.temporary)
+        assert_false(status.recovered)
+        assert_string(status.info)
+      end
+
+      watchdog:stop()
+      self:close()
+    end)
+  end)
+
+  uv.run(debug.traceback)
+
+  assert_equal(1, called(0))
+end)
+
+it('multipart sms with delivery report #2', function()
+  local Stream = MakeStream{
+    {
+      'AT+CMGS=153\r\n',
+      '\r> ',
+    };
+    {
+      '0061010B917777777777F70000A0050003010301D06536FB8D2EB3D96F7499CD7EA3CB6CF61B5D66B3DFE8329BFD4697D9EC37BACC66BFD16536FB8D2EB3D96F7499CD7EA3CB6CF61B5D66B3DFE8329BFD4697D9EC37BACC66BFD16536FB8D2EB3D96F7499CD7EA3CB6CF61B5D66B3DFE8329BFD4697D9EC37BACC66BFD16536FB8D2EB3D96F7499CD7EA3CB6CF61B5D66B3DFE8329BFD4697D9\026',
+      'AT+CMGS=153\r\n+CMGS: 1,\r\n\r\nOK\r\n'
+    };
+
+    function(stream)
+      stream:moc_write('\r\n+CDS: 25\r\n')
+      stream:moc_write('07919761989901F006' .. '01' .. '0B917777777777F75150121183832151501211346521' .. '46' .. '\r\n')
+    end;
+
+    {
+      'AT+CMGS=153\r\n',
+      '\r> ',
+    };
+    {
+      '0061010B917777777777F70000A0050003010302D86F7499CD7EA3CB6CF61B5D66B3DFE8329BFD4697D9EC37BACC66BFD16536FB8D2EB3D96F7499CD7EA3CB6CF61B5D66B3DFE8329BFD4697D9EC37BACC66BFD16536FB8D2EB3D96F7499CD7EA3CB6CF61B5D66B3DFE8329BFD4697D9EC37BACC66BFD16536FB8D2EB3D96F7499CD7EA3CB6CF61B5D66B3DFE8329BFD4697D9EC37BACC66BFD1\026',
+      'AT+CMGS=153\r\n+CMGS: 2,\r\n\r\nOK\r\n'
+    };
+
+    function(stream)
+      stream:moc_write('\r\n+CDS: 25\r\n')
+      stream:moc_write('07919761989901F006' .. '02' .. '0B917777777777F75150121183832151501211346521' .. '46' .. '\r\n')
+    end;
+
+    {
+      'AT+CMGS=58\r\n',
+      '\r> ',
+    };
+    {
+      '0061010B917777777777F7000033050003010303CA6CF61B5D66B3DFE8329BFD4697D9EC37BACC66BFD16536FB8D2EB3D96F7499CD7EA3CB6CF61B\026',
+      'AT+CMGS=58\r\n+CMGS: 3,\r\n\r\nOK\r\n'
+    };
+
+    function(stream)
+      stream:moc_write('\r\n+CDS: 25\r\n')
+      stream:moc_write('07919761989901F006' .. '03' .. '0B917777777777F75150121183832151501211346521' .. '46' .. '\r\n')
+    end;
+  }
+
+  local modem = GsmModem.new(Stream)
+
+  local watchdog = uv.timer():start(5000, function()
+    uv.stop()
+  end)
+
+  modem:open(function(self, ...)
+    self:send_sms('+77777777777', ('hello'):rep(70), {waitReport = true}, function(self, err, ref, res)
+      assert_equal(1, called())
+      assert_equal(self, modem)
+      assert_nil  (err      )
+      assert_table(ref      )
+      assert_table(res      )
+
+      for i = 1, 3 do
+        assert_equal(i, ref[i])
+        local status = assert_table(res[ref[i]])
+        assert_false(status.success)
+        assert_equal(70, status.status)
+        assert_false(status.temporary)
+        assert_false(status.recovered)
+        assert_string(status.info)
+      end
+
+      watchdog:stop()
+      self:close()
+    end)
+  end)
+
+  uv.run(debug.traceback)
+
+  assert_equal(1, called(0))
+end)
+
+it('multipart sms with delivery report #3', function()
+  local Stream = MakeStream{
+    {
+      'AT+CMGS=153\r\n',
+      '\r> ',
+    };
+    {
+      '0061010B917777777777F70000A0050003010301D06536FB8D2EB3D96F7499CD7EA3CB6CF61B5D66B3DFE8329BFD4697D9EC37BACC66BFD16536FB8D2EB3D96F7499CD7EA3CB6CF61B5D66B3DFE8329BFD4697D9EC37BACC66BFD16536FB8D2EB3D96F7499CD7EA3CB6CF61B5D66B3DFE8329BFD4697D9EC37BACC66BFD16536FB8D2EB3D96F7499CD7EA3CB6CF61B5D66B3DFE8329BFD4697D9\026',
+      'AT+CMGS=153\r\n+CMGS: 1,\r\n\r\nOK\r\n'
+    };
+
+    {
+      'AT+CMGS=153\r\n',
+      '\r> ',
+    };
+    {
+      '0061010B917777777777F70000A0050003010302D86F7499CD7EA3CB6CF61B5D66B3DFE8329BFD4697D9EC37BACC66BFD16536FB8D2EB3D96F7499CD7EA3CB6CF61B5D66B3DFE8329BFD4697D9EC37BACC66BFD16536FB8D2EB3D96F7499CD7EA3CB6CF61B5D66B3DFE8329BFD4697D9EC37BACC66BFD16536FB8D2EB3D96F7499CD7EA3CB6CF61B5D66B3DFE8329BFD4697D9EC37BACC66BFD1\026',
+      'AT+CMGS=153\r\n+CMGS: 2,\r\n\r\nOK\r\n'
+    };
+
+    {
+      'AT+CMGS=58\r\n',
+      '\r> ',
+    };
+    {
+      '0061010B917777777777F7000033050003010303CA6CF61B5D66B3DFE8329BFD4697D9EC37BACC66BFD16536FB8D2EB3D96F7499CD7EA3CB6CF61B\026',
+      'AT+CMGS=58\r\n+CMGS: 3,\r\n\r\nOK\r\n'
+    };
+
+    function(stream)
+      stream:moc_write('\r\n+CDS: 25\r\n')
+      stream:moc_write('07919761989901F006' .. '02' .. '0B917777777777F75150121183832151501211346521' .. '46' .. '\r\n')
+    end;
+
+    function(stream)
+      stream:moc_write('\r\n+CDS: 25\r\n')
+      stream:moc_write('07919761989901F006' .. '03' .. '0B917777777777F75150121183832151501211346521' .. '46' .. '\r\n')
+    end;
+
+    function(stream)
+      stream:moc_write('\r\n+CDS: 25\r\n')
+      stream:moc_write('07919761989901F006' .. '01' .. '0B917777777777F75150121183832151501211346521' .. '46' .. '\r\n')
+    end;
+  }
+
+  local modem = GsmModem.new(Stream)
+
+  local watchdog = uv.timer():start(5000, function()
+    uv.stop()
+  end)
+
+  modem:open(function(self, ...)
+    self:send_sms('+77777777777', ('hello'):rep(70), {waitReport = true}, function(self, err, ref, res)
+      assert_equal(1, called())
+      assert_equal(self, modem)
+      assert_nil  (err      )
+      assert_table(ref      )
+      assert_table(res      )
+
+      for i = 1, 3 do
+        assert_equal(i, ref[i])
+        local status = assert_table(res[ref[i]])
+        assert_false(status.success)
+        assert_equal(70, status.status)
+        assert_false(status.temporary)
+        assert_false(status.recovered)
+        assert_string(status.info)
+      end
+
+      watchdog:stop()
+      self:close()
+    end)
+  end)
+
+  uv.run(debug.traceback)
+
+  assert_equal(1, called(0))
+end)
+
 end
 
 local _ENV = TEST_CASE'read_sms' if ENABLE then
