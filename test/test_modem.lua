@@ -1060,4 +1060,75 @@ end)
 
 end
 
+local _ENV = TEST_CASE'delete_sms' if ENABLE then
+
+local it = IT(_ENV or _M)
+
+function setup()
+  gutils.reset_reference()
+  call_count = 0
+end
+
+function teardown()
+  uv.close(true)
+end
+
+it('delete sms from memory', function()
+  local Stream, q = MakeStream{
+    {
+      'AT+CPMS="SM"\r\n',
+      '\r\n+CPMS: 1,20,1,20,1,20\r\n\r\nOK\r\n'
+    },
+    {
+      'AT+CMGD=11\r\n',
+      '\r\nOK\r\n'
+    },
+
+    {
+      'AT+CPMS="ME"\r\n',
+      '\r\n+CPMS: 1,20,1,20,1,20\r\n\r\nOK\r\n'
+    },
+    {
+      'AT+CMGD=12\r\n',
+      '\r\nOK\r\n'
+    },
+
+    {
+      'AT+CPMS="IM"\r\n',
+      '\r\nERROR\r\n'
+    },
+  }
+
+  local modem = GsmModem.new(Stream)
+
+  modem:open(function(self, ...)
+    self:delete_sms(11, {memory = 'SM'}, function(self, err)
+      assert_equal(1, called())
+      assert_equal(self, modem)
+      assert_nil(err)
+    end)
+
+    self:delete_sms(12, {memory = 'ME'}, function(self, err)
+      assert_equal(2, called())
+      assert_equal(self, modem)
+      assert_nil(err)
+    end)
+
+    self:delete_sms(13, {memory = 'IM'}, function(self, err)
+      assert_equal(3, called())
+      assert_equal(self, modem)
+      assert_not_nil(err)
+
+      self:close()
+    end)
+  end)
+
+  uv.run(debug.traceback)
+
+  assert_equal(3, called(0))
+  assert_true(q:empty())
+end)
+
+end
+
 RUN()
