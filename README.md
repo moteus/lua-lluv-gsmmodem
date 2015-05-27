@@ -49,4 +49,28 @@
     print("SMS from:", sms:number(), "Text:", sms:text())
   end)
   ```
- 
+
+* Read SMS
+  ```Lua
+  -- read and delete first SMS from SIM card
+  device:read_sms(1, {memory = 'SM', delete = true}, function(self, sms)
+    print("SMS from:", sms:number(), "Text:", sms:text())
+  end)
+
+  -- read all unreaded sms from phone memory
+  device:each_sms(GsmModem.REC_UNREAD, {memory='ME'}, function(self, err, idx, sms)
+    if err and not index then
+      -- e.g. invalid memory
+      return print("List SMS error:", err)
+    end
+
+    if err then
+      -- Some times device can return invalid sms on list (CMGL), but you can
+      -- try read sms directly (CMGR) (e.g. device:read_sms(idx ...)
+      -- This is works on my WaveCom SIM300
+      return print("Read SMS #" .. idx .. " error:", err)
+    end
+
+    print("#" .. idx, "SMS from:", sms:number(), "Text:", sms:text())
+  end)
+  ```
