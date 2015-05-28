@@ -12,7 +12,7 @@ local split_list  = require "lluv.gsmmodem.utils".split_list
 local decode_list = require "lluv.gsmmodem.utils".decode_list
 
 local pcall, error, type, table, ipairs, print, tonumber = pcall, error, type, table, ipairs, print, tonumber
-local tostring = tostring
+local tostring, string = tostring, string
 local RUN = utils.RUN
 local IT, CMD, PASS = utils.IT, utils.CMD, utils.PASS
 local nreturn, is_equal = utils.nreturn, utils.is_equal
@@ -676,6 +676,72 @@ it("chain command", function()
   assert_equal(stream, stream:execute())
 
   assert_equal(3, called(0))
+end)
+
+end
+
+local _ENV = TEST_CASE'chain commands' if ENABLE then
+
+local it = IT(_ENV or _M)
+
+local stream, command
+
+function setup()
+  stream  = assert(at.Stream(SELF))
+  command = assert(at.Commander(stream))
+  call_count = 0
+end
+
+it('should run chain in proper order', function()
+  local cb_called_ = 0
+  local function cb_called(n)
+    cb_called_ = cb_called_ + (n or 1)
+    return cb_called_
+  end
+
+  stream:on_command(function(self, cmd)
+    assert_equal(stream, self)
+    local e = string.format('AT#%d\r\n', called())
+    assert_equal(e, cmd)
+  end)
+
+  command:at('#1', function(self, err, res)
+    assert_equal(1, cb_called())
+  end)
+
+  command:at('#2', function(self, err, res)
+    assert_equal(2, cb_called())
+  end)
+
+  command:chain{
+    function(command, cont)
+      command:at('#3', function(self, err, res)
+        assert_equal(3, cb_called())
+        cont()
+      end)
+    end;
+
+    function(command, cont)
+      command:at('#4', function(self, err, res)
+        assert_equal(4, cb_called())
+        cont()
+      end)
+    end;
+  }
+
+  command:mode():at('#5', function(self, err, res)
+    assert_equal(5, cb_called())
+  end)
+
+  stream
+    :append(OK):execute()
+    :append(OK):execute()
+    :append(OK):execute()
+    :append(OK):execute()
+    :append(OK):execute()
+
+  assert_equal(5, called(0))
+  assert_equal(5, cb_called(0))
 end)
 
 end

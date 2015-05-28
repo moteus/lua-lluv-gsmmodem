@@ -501,6 +501,21 @@ function ATCommander:_basic_cmd_ex(...)
   return true
 end
 
+function ATCommander:chain(t)
+  local i = 1
+  local front = self._front
+
+  local function cont()
+    local f = t[i]
+    i = i + 1
+    if f then f(self:mode(i > 2 or self._front, true), cont) end
+  end
+
+  cont()
+
+  return self
+end
+
 function ATCommander:ATZ(...)
   return self:_basic_cmd('ATZ', ...)
 end

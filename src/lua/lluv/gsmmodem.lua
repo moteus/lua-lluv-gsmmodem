@@ -155,64 +155,53 @@ function GsmModem:cmd(front, chain)
 end
 
 function GsmModem:configure(cb)
-  local command = self:cmd(true, true)
-  local chain
+  return self:cmd():chain{
+    function(command, next_fn) command:raw("\26", 5000, next_fn) end;
 
-  local function next_fn()
-    local f = table.remove(chain, 1)
-    if f then return f() end
-    cb(self)
-  end
-
-  chain = {
-    function() command:raw("\26", 5000, next_fn) end;
-
-    function() self:at_wait(30, function(self, err, data)
+    function(command, next_fn) self:at_wait(30, function(self, err, data)
       if err then return cb(this, err, 'AT', data) end
       next_fn()
     end) end;
 
-    function() command:Echo(false, function(this, err, data)
+    function(command, next_fn) command:Echo(false, function(this, err, data)
       if err then return cb(this, err, 'Echo', data) end
       next_fn()
     end) end;
 
-    function() command:ErrorMode(1, function(this, err, data)
+    function(command, next_fn) command:ErrorMode(1, function(this, err, data)
       if err then return cb(this, err, 'ErrorMode', data) end
       next_fn()
     end) end;
 
-    function() command:SmsTextMode(false, function(this, err, mode)
+    function(command, next_fn) command:SmsTextMode(false, function(this, err, mode)
       if err then return cb(this, err, 'CMGF', data) end
       next_fn()
     end) end;
 
-    function() command:CNMI(2, 2, nil, 1, nil, function(this, err, data)
+    function(command, next_fn) command:CNMI(2, 2, nil, 1, nil, function(this, err, data)
       if err then return cb(this, err, 'CNMI', data) end
       next_fn()
     end) end;
 
-    function() command:CLIP(1, function(this, err, data)
+    function(command, next_fn) command:CLIP(1, function(this, err, data)
       if err then return cb(this, err, 'CLIP', data) end
       next_fn()
     end) end;
 
-    function() command:at('+CSCS="IRA"', function(this, err, data)
+    function(command, next_fn) command:at('+CSCS="IRA"', function(this, err, data)
       if err then return cb(this, err, 'CSCS', data) end
       next_fn()
     end) end;
 
-    function() command:MemoryStatus(function(this, err, mem1, mem2, mem3)
+    function(command, next_fn) command:MemoryStatus(function(this, err, mem1, mem2, mem3)
       if mem1 then self._mem1 = mem1[1] self._memory[mem1[1]] = mem1 end
       if mem2 then self._mem2 = mem2[1] self._memory[mem2[1]] = mem2 end
       if mem3 then self._mem3 = mem3[1] self._memory[mem3[1]] = mem3 end
       next_fn()
     end) end;
+
+    function() cb(self) end;
   }
-
-  next_fn()
-
-  return self
 end
 
 function GsmModem:open(cb)
@@ -539,12 +528,12 @@ function GsmModem:at_wait(...)
       if counter > sec then
         return cb(this, err, 'AT', data)
       end
-      return self:cmd():at(cmd, poll_timeout, on_wait)
+      return self:cmd(true, true):at(cmd, poll_timeout, on_wait)
     end
     cb(self)
   end
 
-  self:cmd():at(cmd, poll_timeout, on_wait)
+  self:cmd(true, true):at(cmd, poll_timeout, on_wait)
 
   return self
 end
