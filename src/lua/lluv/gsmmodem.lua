@@ -1,3 +1,15 @@
+------------------------------------------------------------------
+--
+--  Author: Alexey Melnichuk <alexeymelnichuck@gmail.com>
+--
+--  Copyright (C) 2015 Alexey Melnichuk <alexeymelnichuck@gmail.com>
+--
+--  Licensed according to the included 'LICENSE' document
+--
+--  This file is part of lua-lluv-gsmmodem library.
+--
+------------------------------------------------------------------
+
 local at    = require "lluv.gsmmodem.at"
 local utils = require "lluv.gsmmodem.utils"
 local Error = require "lluv.gsmmodem.error".error

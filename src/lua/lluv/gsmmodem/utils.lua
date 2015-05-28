@@ -1,3 +1,15 @@
+------------------------------------------------------------------
+--
+--  Author: Alexey Melnichuk <alexeymelnichuck@gmail.com>
+--
+--  Copyright (C) 2015 Alexey Melnichuk <alexeymelnichuck@gmail.com>
+--
+--  Licensed according to the included 'LICENSE' document
+--
+--  This file is part of lua-lluv-gsmmodem library.
+--
+------------------------------------------------------------------
+
 local tpdu  = require "tpdu"
 local Bit7  = require "tpdu.bit7"
 local iconv = require "iconv"
