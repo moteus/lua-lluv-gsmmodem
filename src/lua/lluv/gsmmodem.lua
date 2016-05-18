@@ -2,7 +2,7 @@
 --
 --  Author: Alexey Melnichuk <alexeymelnichuck@gmail.com>
 --
---  Copyright (C) 2015 Alexey Melnichuk <alexeymelnichuck@gmail.com>
+--  Copyright (C) 2015-2016 Alexey Melnichuk <alexeymelnichuck@gmail.com>
 --
 --  Licensed according to the included 'LICENSE' document
 --
@@ -899,6 +899,11 @@ end
 ---------------------------------------------------------------
 
 return {
+  _NAME      = "lluv-gsmmodem";
+  _VERSION   = "0.1.0-dev";
+  _COPYRIGHT = "Copyright (C) 2015-2016 Alexey Melnichuk";
+  _LICENSE   = "MIT";
+
   new        = GsmModem.new;
   SMSMessage = SMSMessage.new;
 

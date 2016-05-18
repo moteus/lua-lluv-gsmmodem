@@ -16,6 +16,13 @@ local ut       = require "lluv.utils"
 local GsmModem = require "lluv.gsmmodem"
 local gutils   = require "lluv.gsmmodem.utils"
 
+print("------------------------------------")
+print("Module    name: " .. GsmModem._NAME);
+print("Module version: " .. GsmModem._VERSION);
+print("Lua    version: " .. (_G.jit and _G.jit.version or _G._VERSION))
+print("------------------------------------")
+print("")
+
 ---------------------------------------------------------------
 local MocStream = ut.class() do
 
