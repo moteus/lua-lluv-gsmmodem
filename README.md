@@ -53,7 +53,7 @@
 * Read SMS
   ```Lua
   -- read and delete first SMS from SIM card
-  device:read_sms(1, {memory = 'SM', delete = true}, function(self, sms)
+  device:read_sms(1, {memory = 'SM', delete = true}, function(self, err, sms)
     print("SMS from:", sms:number(), "Text:", sms:text())
   end)
 
