@@ -51,11 +51,11 @@ device:open(function(self, err, info)
 
       if err then -- try read sms directly
         return self:read_sms(index, {memory = 'SM'}, function(self, err, sms)
-          print(index, sms and sms:text(CODE_PAGE) or err, sms and sms:date())
+          print(index, sms and sms:number(), sms and sms:text(CODE_PAGE) or err, sms and sms:date())
         end)
       end
 
-      print(index, sms and sms:text(CODE_PAGE) or err, sms and sms:date())
+      print(index,  sms and sms:number(), sms and sms:text(CODE_PAGE) or err, sms and sms:date())
     end)
 
     if USSD_NUMBER then
