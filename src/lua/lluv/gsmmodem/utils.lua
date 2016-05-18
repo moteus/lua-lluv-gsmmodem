@@ -193,7 +193,7 @@ local function ts2date(d)
   local tz  = math.abs(d.tz)
   local htz = math.floor(tz)
   local mtz = math.floor(
-    60 * math.mod(tz * 100, 100) / 100
+    60 * ((tz * 100) % 100) / 100
   )
 
   local s = string.format("20%.2d-%.2d-%.2d %.2d:%.2d:%.2d %s%d:%.2d",
@@ -207,7 +207,7 @@ end
 
 local function date2ts(d)
   local ts = {
-    year  = math.mod(d:getyear(), 1000),
+    year  = d:getyear() % 1000,
     month = d:getmonth(),
     day   = d:getday(),
     hour  = d:gethours(),
