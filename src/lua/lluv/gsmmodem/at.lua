@@ -201,8 +201,8 @@ function ATStream:_command_done(status, info)
 end
 
 local function execute_step(self, line)
-  if #line == 0 then
-    self._has_empty_line = true
+  self._has_empty_line = (#line == 0)
+  if self._has_empty_line then
     return
   end
 

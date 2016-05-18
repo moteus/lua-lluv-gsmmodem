@@ -28,6 +28,21 @@ local unquot = function(data)
   return (trim(data):match('^"?(.-)"?$'))
 end
 
+local function Counter()
+  return setmetatable({{}}, {__call=function(self, name)
+    local fn = self[1][name]
+    if not fn then
+      self[name] = self[name] or 0
+      fn = function(inc)
+        self[name] = self[name] + 1
+        return self[name]
+      end
+      self[1][name] = fn
+    end
+    return fn
+  end; __index = function() return 0 end})
+end
+
 local ENABLE = true
 
 local SELF, call_count = {}
@@ -295,8 +310,7 @@ for i, T in ipairs(CMGS) do
   local sms_body = T[2] .. '\26'
   local response = T[3] .. EOL .. OK
 
-it(("CMGS#%.3d command"):format(i), function()
-  stream:on_command(function(self, cmd)
+  local on_command = function(self, cmd)
     if 0 == called(0) then
       called()
       assert_equal(request, cmd)
@@ -304,18 +318,39 @@ it(("CMGS#%.3d command"):format(i), function()
       assert_equal(2, called())
       assert_equal(sms_body, cmd)
     end
-  end)
+  end
 
-  assert_true(command:CMGS(len, T[2], function(self, err, ref, data)
+  local on_cmgs = function(self, err, ref, data)
     assert_equal(3, called())
     assert_nil(err)
     assert_equal(T[4][1],  ref  )
     assert_equal(T[4][2],  data )
-  end))
+  end
+
+it(("CMGS#%.3d command"):format(i), function()
+  stream:on_command(on_command)
+
+  assert_true(command:CMGS(len, T[2], on_cmgs))
 
   assert_equal(1, called(0))
 
   assert_equal(stream, stream:append(request))
+  assert_equal(stream, stream:append(EOL .. '> '))
+  assert_equal(stream, stream:execute())
+
+  assert_equal(2, called(0))
+
+  assert_equal(stream, stream:append(response))
+  assert_equal(stream, stream:execute())
+end)
+
+it(("CMGS#%.3d command no echo"):format(i), function()
+  stream:on_command(on_command)
+
+  assert_true(command:CMGS(len, T[2], on_cmgs))
+
+  assert_equal(1, called(0))
+
   assert_equal(stream, stream:append(EOL .. '> '))
   assert_equal(stream, stream:execute())
 
@@ -742,6 +777,124 @@ it('should run chain in proper order', function()
 
   assert_equal(5, called(0))
   assert_equal(5, cb_called(0))
+end)
+
+end
+
+local _ENV = TEST_CASE'prompt eol' if ENABLE then
+
+local it = IT(_ENV or _M)
+
+local stream, command, counter
+
+function setup()
+  stream   = assert(at.Stream(SELF))
+  command  = assert(at.Commander(stream))
+  counters = Counter()
+end
+
+local len      = 42
+local request  = 'AT+CMGS=' .. tostring(len)
+local sms_body = '0791361907001003B17A0C913619397750320000AD11CD701E340FB3C3F23CC81D0689C3BF'
+local sms_ref  = 5
+local response = '+CMGS: ' .. tostring(sms_ref) .. EOL .. OK
+
+local function on_command(self, cmd)
+  if 1 == counters'on_command'() then
+    assert_equal(request .. EOL, cmd)
+  else
+    assert_equal(2, counters.on_command)
+    assert_equal(sms_body .. '\26', cmd)
+  end
+end
+
+local function on_cmgs(self, err, ref)
+  counters'cmgs'()
+  assert_nil(err)
+  assert_equal(sms_ref, ref)
+end
+
+it('should ignore prompt without EOL',function()
+  stream:on_command(on_command)
+
+  assert_true(command:CMGS(len, sms_body, on_cmgs))
+
+  assert_equal(stream, stream:append(request):append(EOL)) -- echo
+
+  assert_equal(stream, stream:execute())
+  assert_equal(1, counters.on_command)
+  assert_equal(0, counters.cmgs)
+
+  assert_equal(stream, stream:append(''):append('> '))    -- prompt
+
+  assert_equal(stream, stream:execute())
+  assert_equal(1, counters.on_command)
+  assert_equal(0, counters.cmgs)
+end)
+
+it('should ignore second prompt without EOL',function()
+  stream:on_command(on_command)
+
+  assert_true(command:CMGS(len, sms_body, on_cmgs))
+
+  assert_equal(stream, stream:append(request):append(EOL)) -- echo
+
+  assert_equal(stream, stream:execute())
+  assert_equal(1, counters.on_command)
+  assert_equal(0, counters.cmgs)
+
+  assert_equal(stream, stream:append(EOL):append('> '))    -- prompt
+
+  assert_equal(stream, stream:execute())
+  assert_equal(2, counters.on_command)
+  assert_equal(0, counters.cmgs)
+
+  assert_equal(stream, stream:append(response))
+
+  assert_equal(stream, stream:execute())
+  assert_equal(2, counters.on_command)
+  assert_equal(1, counters.cmgs)
+
+  counters.cmgs = 0
+  counters.on_command = 0
+
+  assert_true(command:CMGS(len, sms_body, on_cmgs))
+
+  assert_equal(stream, stream:append(request):append(EOL)) -- echo
+
+  assert_equal(stream, stream:execute())
+  assert_equal(1, counters.on_command)
+  assert_equal(0, counters.cmgs)
+
+  assert_equal(stream, stream:append(''):append('> '))    -- prompt
+
+  assert_equal(stream, stream:execute())
+  assert_equal(1, counters.on_command)
+  assert_equal(0, counters.cmgs)
+
+end)
+
+it('should interrupt by final response without prompt',function()
+  stream:on_command(on_command)
+
+  assert_true(command:CMGS(len, sms_body, on_cmgs))
+
+  assert_equal(stream, stream:append(request):append(EOL)) -- echo
+  assert_equal(stream, stream:append(response)) -- final response
+  assert_equal(stream, stream:execute())
+  assert_equal(1, counters.on_command)
+  assert_equal(1, counters.cmgs)
+end)
+
+it('should interrupt by final response without prompt without echo',function()
+  stream:on_command(on_command)
+
+  assert_true(command:CMGS(len, sms_body, on_cmgs))
+
+  assert_equal(stream, stream:append(response)) -- final response
+  assert_equal(stream, stream:execute())
+  assert_equal(1, counters.on_command)
+  assert_equal(1, counters.cmgs)
 end)
 
 end
