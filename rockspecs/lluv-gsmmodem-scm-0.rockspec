@@ -23,7 +23,7 @@ dependencies = {
   "date",
   "lpeg",
   "lua-iconv",
-  "EventEmitter",
+  "eventemitter",
 }
 
 build = {
