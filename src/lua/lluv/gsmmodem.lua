@@ -272,7 +272,7 @@ function GsmModem:open(cb)
     if not err then
       self._device:start_read(function(dev, err, data)
         if err then
-          return print('Read from port fail:', err, data)
+          return self:emit('error', err, data)
         end
 
         if data:sub(-1) == '\255' then
