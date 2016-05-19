@@ -158,6 +158,7 @@ local function called(n)
   return call_count
 end
 
+local TEST_TIMEOUT = 5000
 local ENABLE = true
 
 local _ENV = TEST_CASE'send_sms' if ENABLE then
@@ -167,6 +168,7 @@ local it = IT(_ENV or _M)
 function setup()
   gutils.reset_reference()
   call_count = 0
+  uv.timer():start(TEST_TIMEOUT, function() uv.stop() end):unref()
 end
 
 function teardown()
@@ -470,6 +472,7 @@ local it = IT(_ENV or _M)
 function setup()
   gutils.reset_reference()
   call_count = 0
+  uv.timer():start(TEST_TIMEOUT, function() uv.stop() end):unref()
 end
 
 function teardown()
@@ -752,6 +755,8 @@ function setup()
       stream:moc_write('07919761989901F006280B917777777777F7515012118383215150121134652146\r\n')
     end;
   }
+
+  uv.timer():start(TEST_TIMEOUT, function() uv.stop() end):unref()
 end
 
 function teardown()
@@ -857,6 +862,7 @@ local Stream
 function setup()
   gutils.reset_reference()
   call_count = 0
+  uv.timer():start(TEST_TIMEOUT, function() uv.stop() end):unref()
 end
 
 function teardown()
@@ -1076,6 +1082,7 @@ local it = IT(_ENV or _M)
 function setup()
   gutils.reset_reference()
   call_count = 0
+  uv.timer():start(TEST_TIMEOUT, function() uv.stop() end):unref()
 end
 
 function teardown()

@@ -134,27 +134,51 @@ function ATStream:append(data)
   return self
 end
 
+--- Register handler to write to serial port.
+--
 function ATStream:on_command(handler)
   self._on_command = handler
   return self
 end
 
+--- Register handler that make delay before send next command.
+--
 function ATStream:on_delay(handler)
   self._on_delay = handler
   return self
 end
 
+--- Register handler to handle command execute done.
+-- 
+-- You can start timer in `on_command` handler and stop it here
+--
 function ATStream:on_done(handler)
   self._on_done = handler
   return self
 end
 
+-- Register handler for URC messages.
+--
 function ATStream:on_message(handler)
   self._on_message = handler
   return self
 end
 
-function ATStream:on_message_(...)
+function ATStream:_emit_command(...)
+  if self._on_command then
+    self._on_command(self._self, ...)
+  end
+  return self
+end
+
+function ATStream:_emit_done(...)
+  if self._on_done then
+    self._on_done(self._self, ...)
+  end
+  return self
+end
+
+function ATStream:_emit_message(...)
   if self._on_message then
     self._on_message(self._self, ...)
   end
@@ -188,7 +212,7 @@ end
 
 function ATStream:_command_done(status, info)
   local t = self._active_queue:pop()
-  if self._on_done then self:_on_done() end
+  self:_emit_done()
 
   if not t[CHAIN_I] then self:_command() end
 
@@ -209,7 +233,7 @@ local function execute_step(self, line)
   if self._state[1] == STATE_WAIT_URC_DATA then
     local typ, info = self._state.typ, self._state.info
     self._state[1], self._state.typ, self._state.info = STATE_NONE
-    return self:on_message_(typ, info, line)
+    return self:_emit_message(typ, info, line)
   end
 
   local urc_typ, urc_info = is_async_msg(line)
@@ -225,7 +249,7 @@ local function execute_step(self, line)
       self._state.typ  = urc_typ
       self._state.info = urc_info
     else
-      self:on_message_(urc_typ, urc_info)
+      self:_emit_message(urc_typ, urc_info)
     end
     return
   end
@@ -241,7 +265,7 @@ local function execute_step(self, line)
     local prompt = t[PROMPT_I]
     if prompt and prompt[1] == line then
       t[PROMPT_I] = nil
-      return self:_on_command(prompt[2], prompt[3])
+      return self:_emit_command(prompt[2], prompt[3])
     end
 
     local r = t[RES_I] or {}
@@ -282,7 +306,7 @@ function ATStream:_command(front, t)
 
   if self._on_delay then
     if not self:_busy() then
-      self:_on_delay()
+      self._on_delay(self._self)
     end
     return
   end
@@ -328,7 +352,7 @@ function ATStream:next_command()
   if not self:_busy() then
     local t = self._command_queue:pop_front()
     if t then
-      self:_on_command(t[CMD_I] .. self._eol, t[TIMEOUT_I])
+      self:_emit_command(t[CMD_I] .. self._eol, t[TIMEOUT_I])
       self._active_queue:push(t)
     end
   end

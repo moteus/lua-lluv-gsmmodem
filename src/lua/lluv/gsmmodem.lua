@@ -81,6 +81,37 @@ local URC_TYPS = {
 local URC_TYPS_INVERT = {}
 for k, v in pairs(URC_TYPS) do URC_TYPS_INVERT[v] = k end
 
+local on_command = function(self, cmd, timeout)
+  if self._device then
+    self._device:write(cmd)
+    self._cmd_timer:again(timeout or DEFAULT_COMMAND_TIMEOUT)
+  end
+end
+
+local on_done = function(self)
+  if self._cmd_timer then
+    self._cmd_timer:stop()
+  end
+end
+
+local on_delay = function(self)
+  if self._snd_timer then
+    self._snd_timer:again()
+  end
+end
+
+local on_message = function(self, typ, msg, info)
+  local fn = self._urc['*']
+  if fn then fn(self, typ, msg, info) end
+
+  if typ == '+CDS' then
+    self:_on_cds_check(at.DecodeUrc(nil, typ, msg, info))
+  end
+
+  fn = self._urc[typ]
+  if fn then fn(self, at.DecodeUrc(nil, typ, msg, info)) end
+end
+
 function GsmModem:__init(...)
   local device
   if type(...) == 'string' then
@@ -104,26 +135,16 @@ function GsmModem:__init(...)
     stream:next_command()
   end):stop()
 
-  stream:on_command(function(stream, cmd, timeout)
-    if self._device then
-      self._device:write(cmd)
-      self._cmd_timer:again(timeout or DEFAULT_COMMAND_TIMEOUT)
-    end
-  end)
-
-  -- Stop timeout timer
-  stream:on_done(function()
-    if self._cmd_timer then
-      self._cmd_timer:stop()
-    end
-  end)
-
-  -- Wait before send out command
-  stream:on_delay(function()
-    if self._snd_timer then
-      self._snd_timer:again()
-    end
-  end)
+  -- configure stream
+  stream
+    -- Write command to port
+    :on_command(on_command)
+    -- Stop timeout timer
+    :on_done(on_done)
+    -- Wait before send out next command
+    :on_delay(on_delay)
+    -- Handle URC data
+    :on_message(on_message)
 
   self._device    = device
   self._stream    = stream
@@ -134,18 +155,6 @@ function GsmModem:__init(...)
   self._cds_wait  = {}
   self._reference = 0
   self._memory    = {}
-
-  stream:on_message(function(this, typ, msg, info)
-    local fn = self._urc['*']
-    if fn then fn(this, typ, msg, info) end
-
-    if typ == '+CDS' then
-      self:_on_cds_check(at.DecodeUrc(nil, typ, msg, info))
-    end
-
-    fn = self._urc[typ]
-    if fn then fn(this, at.DecodeUrc(nil, typ, msg, info)) end
-  end)
 
   return self
 end

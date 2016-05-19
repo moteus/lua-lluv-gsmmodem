@@ -34,6 +34,8 @@ device:open(function(self, err, info)
       return self:close()
     end
 
+    print("Configure done")
+
     -- self:set_rs232_trace(true)
 
     self:read_sms(1, {memory='SM'}, function(self, err, sms)
