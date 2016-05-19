@@ -101,6 +101,10 @@ local on_message = function(self, typ, msg, info)
   self:emit(at.DecodeUrc(nil, typ, msg, info))
 end
 
+local on_unexpected = function(self, line)
+  self:emit('unexpected', line)
+end
+
 local function CreateSms(self, typ, mode, ...)
   local sms, err
   if mode then -- text mode
@@ -187,6 +191,8 @@ function GsmModem:__init(...)
     :on_delay(on_delay)
     -- Handle URC data
     :on_message(on_message)
+    -- Handle unexpected data
+    :on_unexpected(on_unexpected)
 
   self._device    = device
   self._stream    = stream

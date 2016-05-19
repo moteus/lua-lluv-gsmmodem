@@ -164,6 +164,17 @@ function ATStream:on_message(handler)
   return self
 end
 
+-- Register handler for unexpected responses.
+--
+-- This can be
+--  * URC that library can not handle
+--  * Bug in Library
+--  * Bug in device
+function ATStream:on_unexpected(handler)
+  self._on_unexpected = handler
+  return self
+end
+
 function ATStream:_emit_command(...)
   if self._on_command then
     self._on_command(self._self, ...)
@@ -174,6 +185,13 @@ end
 function ATStream:_emit_done(...)
   if self._on_done then
     self._on_done(self._self, ...)
+  end
+  return self
+end
+
+function ATStream:_emit_unexpected(...)
+  if self._on_unexpected then
+    self._on_unexpected(self._self, ...)
   end
   return self
 end
@@ -275,9 +293,7 @@ local function execute_step(self, line)
     return
   end
 
-  if self._unexpected then
-    self:_unexpected(line)
-  end
+  self:_emit_unexpected(line)
 end
 
 function ATStream:execute()

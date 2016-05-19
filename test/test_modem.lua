@@ -832,7 +832,7 @@ end)
 
 end
 
-local _ENV = TEST_CASE'recv' if ENABLE then
+local _ENV = TEST_CASE'urc data' if ENABLE then
 
 local it = IT(_ENV or _M)
 
@@ -1051,6 +1051,30 @@ it('CLIP', function()
 
   modem:open(function()
     Stream:moc_write('\r\n+CLIP: "+77777777777",145,"",,"",0\r\n')
+  end)
+
+  uv.timer():start(2000, function()
+    modem:close()
+  end):unref()
+
+  uv.run()
+
+  assert_equal(1, called(0))
+end)
+
+it('Unexpected', function()
+  Stream = MakeStream{}
+
+  local modem = GsmModem.new(Stream)
+
+  modem:on('unexpected', function(self, event, line)
+    assert_equal(1, called())
+    assert_equal('OK', line)
+    self:close()
+  end)
+
+  modem:open(function()
+    Stream:moc_write('\r\n\r\nOK\r\n')
   end)
 
   uv.timer():start(2000, function()
