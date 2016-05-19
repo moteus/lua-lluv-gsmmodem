@@ -45,7 +45,7 @@
 
 * Recv SMS
   ```Lua
-  device:on_recv_sms(function(self, sms)
+  device:on('sms::recv', function(self, event, sms)
     print("SMS from:", sms:number(), "Text:", sms:text())
   end)
   ```

@@ -19,11 +19,11 @@ local function init_device(self)
   end)
 end
 
-device:on_recv_sms(on_sms)
+device:on('sms::recv', function(self, _, ...) on_sms(self, ...)  end)
 
-device:on_call(on_call)
+device:on('call',      function(self, _, ...) on_call(self, ...) end)
 
-device:on_save_sms(function(self, index, mem)
+device:on('sms::save', function(self, _, index, mem)
   self:read_sms(index, {delete=true, memory = mem}, function(self, err, sms, del_err)
     if err then
       return print("Error read sms:", err)
@@ -33,7 +33,7 @@ device:on_save_sms(function(self, index, mem)
   end)
 end)
 
-device:on_boot(function(self)
+device:on('boot', function(self)
   uv.timer():start(10000, function(timer)
     timer:close()
     init_device(self)

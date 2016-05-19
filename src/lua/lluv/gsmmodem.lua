@@ -10,13 +10,14 @@
 --
 ------------------------------------------------------------------
 
-local at    = require "lluv.gsmmodem.at"
-local utils = require "lluv.gsmmodem.utils"
-local Error = require "lluv.gsmmodem.error".error
-local uv    = require "lluv"
-local ut    = require "lluv.utils"
-local tpdu  = require "tpdu"
-uv.rs232    = require "lluv.rs232"
+local at           = require "lluv.gsmmodem.at"
+local utils        = require "lluv.gsmmodem.utils"
+local Error        = require "lluv.gsmmodem.error".error
+local EventEmitter = require "EventEmitter".EventEmitter
+local uv           = require "lluv"
+local ut           = require "lluv.utils"
+local tpdu         = require "tpdu"
+uv.rs232           = require "lluv.rs232"
 
 local pack_args = utils.pack_args
 local ts2date   = utils.ts2date
@@ -69,17 +70,7 @@ local function DecodeSms(pdu, stat, ...)
 end
 
 ---------------------------------------------------------------
-local GsmModem = ut.class() do
-
-local URC_TYPS = {
-  [ '+CMT'  ] = 'on_recv_sms';
-  [ '+CMTI' ] = 'on_save_sms';
-  [ '+CDS'  ] = 'on_recv_status';
-  [ '+CDSI' ] = 'on_save_status';
-  [ '+CLIP' ] = 'on_call';
-}
-local URC_TYPS_INVERT = {}
-for k, v in pairs(URC_TYPS) do URC_TYPS_INVERT[v] = k end
+local GsmModem = ut.class(EventEmitter) do
 
 local on_command = function(self, cmd, timeout)
   if self._device then
@@ -101,18 +92,69 @@ local on_delay = function(self)
 end
 
 local on_message = function(self, typ, msg, info)
-  local fn = self._urc['*']
-  if fn then fn(self, typ, msg, info) end
+  self:emit('urc', typ, msg, info)
 
   if typ == '+CDS' then
     self:_on_cds_check(at.DecodeUrc(nil, typ, msg, info))
   end
 
-  fn = self._urc[typ]
-  if fn then fn(self, at.DecodeUrc(nil, typ, msg, info)) end
+  self:emit(at.DecodeUrc(nil, typ, msg, info))
+end
+
+local function CreateSms(self, typ, mode, ...)
+  local sms, err
+  if mode then -- text mode
+    if typ == 'DELIVER' then
+      local text, number = ...
+      sms, err = SMSMessage.new(number, text)
+    else
+      local ref, status, number = ...
+      sms = SMSMessage.new()
+        :set_reference(ref)
+        :set_delivery_status(status)
+        :set_number(number)
+    end
+  else
+    local pdu, len = ...
+    sms, err = SMSMessage.new():decode_pdu(pdu, REC_UNREAD, len)
+  end
+  if sms then sms:set_type(typ) end
+  return sms, err
+end
+
+local on_recv_sms = function(self, event, ...)
+  local sms, err = CreateSms(self, 'DELIVER', ...)
+
+  if sms then
+    return self:emit('sms::recv', sms)
+  end
+
+  if err then
+    return self:emit('error', err)
+  end
+end
+
+local on_recv_status = function(self, event, ...)
+  local sms, err = CreateSms(self, 'DELIVER-REPORT', ...)
+
+  if sms then
+    return self:emit('report::recv', sms)
+  end
+
+  if err then
+    return self:emit('error', err)
+  end
+end
+
+local emit_forward = function(event)
+  return function(self, _, ...)
+    self:emit(event, ...)
+  end
 end
 
 function GsmModem:__init(...)
+  self.__base.__init(self, {wildcard = true, delimiter = '::'})
+
   local device
   if type(...) == 'string' then
     device  = uv.rs232(...)
@@ -151,10 +193,16 @@ function GsmModem:__init(...)
   self._command   = command
   self._cmd_timer = cmdTimeout
   self._snd_timer = cmdSendTimer
-  self._urc       = {}
   self._cds_wait  = {}
   self._reference = 0
   self._memory    = {}
+
+  self
+    :on('+CMT',  on_recv_sms)
+    :on('+CMTI', emit_forward'sms::save')
+    :on('+CDS',  on_recv_status)
+    :on('+CDSI', emit_forward'report::save')
+    :on('+CLIP', emit_forward'call')
 
   return self
 end
@@ -226,9 +274,7 @@ function GsmModem:open(cb)
           self._cmd_timer:stop()
           self._snd_timer:stop()
 
-          if self._on_boot then
-            self:_on_boot()
-          end
+          self:emit('boot')
 
           return
         end
@@ -255,101 +301,6 @@ function GsmModem:set_delay(ms)
   ms = ms or DEFAULT_COMMAND_DELAY
   if ms <= 1 then ms = 1 end
   self._snd_timer:set_repeat(ms)
-  return self
-end
-
-function GsmModem:on_boot(handler)
-  self._on_boot = handler
-end
-
-function GsmModem:on_urc(handler)
-  self._urc['*'] = handler
-  return self
-end
-
-function GsmModem:on_recv_sms(handler)
-  local typ = URC_TYPS_INVERT['on_recv_sms']
-  if not handler then self._urc[typ] = nil else
-    self._urc[typ] = function(self, typ, mode, ...)
-      local sms, err
-      if mode then
-        local text, number = ...
-        sms, err = SMSMessage.new(number, text)
-      else
-        local pdu, len = ...
-        sms, err = SMSMessage.new():decode_pdu(pdu, REC_UNREAD, len)
-      end
-      --! @todo handle error
-      if sms then handler(self, sms) end
-    end
-  end
-
-  return self
-end
-
-function GsmModem:on_save_sms(handler)
-  local typ = URC_TYPS_INVERT['on_save_sms']
-  if not handler then self._urc[typ] = nil else
-    self._urc[typ] = function(self, typ, ...)
-      handler(self, ...)
-    end
-  end
-  return self
-end
-
-function GsmModem:on_sms(handler)
-  return self
-    :on_recv_sms(handler)
-    :on_save_sms(handler)
-end
-
-function GsmModem:on_recv_status(handler)
-  local typ = URC_TYPS_INVERT['on_recv_status']
-  if not handler then self._urc[typ] = nil else
-    self._urc[typ] = function(self, typ, mode, ...)
-      local sms, err
-      if mode then
-        local ref, status, number = ...
-        sms = SMSMessage.new()
-          :set_type('DELIVER-REPORT')
-          :set_reference(ref)
-          :set_delivery_status(status)
-          :set_number(number)
-      else
-        local pdu, len = ...
-        sms, err = SMSMessage.new():decode_pdu(pdu, REC_UNREAD, len)
-      end
-      --! @todo handle error
-      if sms then handler(self, sms) end
-    end
-  end
-
-  return self
-end
-
-function GsmModem:on_save_status(handler)
-  local typ = URC_TYPS_INVERT['on_save_status']
-  if not handler then self._urc[typ] = nil else
-    self._urc[typ] = function(self, typ, ...)
-      handler(self, ...)
-    end
-  end
-  return self
-end
-
-function GsmModem:on_status(handler)
-  return self
-    :on_recv_status(handler)
-    :on_save_status(handler)
-end
-
-function GsmModem:on_call(handler)
-  local typ = URC_TYPS_INVERT['on_call']
-  if not handler then self._urc[typ] = nil else
-    self._urc[typ] = function(self, typ, ...)
-      handler(self, ...)
-    end
-  end
   return self
 end
 

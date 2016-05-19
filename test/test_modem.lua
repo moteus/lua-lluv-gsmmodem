@@ -1,6 +1,6 @@
 package.path = "..\\src\\lua\\?.lua;" .. package.path
 
-pcall(require, "luacov")
+-- pcall(require, "luacov")
 
 local utils     = require "utils"
 local TEST_CASE = require "lunit".TEST_CASE
@@ -273,10 +273,6 @@ it('multipart sms with delivery report #1', function()
 
   local modem = GsmModem.new(Stream)
 
-  local watchdog = uv.timer():start(5000, function()
-    uv.stop()
-  end)
-
   modem:open(function(self, ...)
     self:send_sms('+77777777777', ('hello'):rep(70), {waitReport = true}, function(self, err, ref, res)
       assert_equal(1, called())
@@ -295,7 +291,6 @@ it('multipart sms with delivery report #1', function()
         assert_string(status.info)
       end
 
-      watchdog:stop()
       self:close()
     end)
   end)
@@ -352,10 +347,6 @@ it('multipart sms with delivery report #2', function()
 
   local modem = GsmModem.new(Stream)
 
-  local watchdog = uv.timer():start(5000, function()
-    uv.stop()
-  end)
-
   modem:open(function(self, ...)
     self:send_sms('+77777777777', ('hello'):rep(70), {waitReport = true}, function(self, err, ref, res)
       assert_equal(1, called())
@@ -374,7 +365,6 @@ it('multipart sms with delivery report #2', function()
         assert_string(status.info)
       end
 
-      watchdog:stop()
       self:close()
     end)
   end)
@@ -431,10 +421,6 @@ it('multipart sms with delivery report #3', function()
 
   local modem = GsmModem.new(Stream)
 
-  local watchdog = uv.timer():start(5000, function()
-    uv.stop()
-  end)
-
   modem:open(function(self, ...)
     self:send_sms('+77777777777', ('hello'):rep(70), {waitReport = true}, function(self, err, ref, res)
       assert_equal(1, called())
@@ -453,7 +439,6 @@ it('multipart sms with delivery report #3', function()
         assert_string(status.info)
       end
 
-      watchdog:stop()
       self:close()
     end)
   end)
@@ -825,10 +810,6 @@ it('wait timeout', function()
 
   local modem = GsmModem.new(Stream)
 
-  local watchdog = uv.timer():start(10000, function()
-    uv.stop(true)
-  end)
-
   local timeout1 = uv.timer():start(1000, function()
     assert_equal(1, called())
   end)
@@ -841,10 +822,8 @@ it('wait timeout', function()
       assert(err:name() == 'TIMEOUT')
       assert_equal(ref, 38)
       self:close()
-      watchdog:close()
     end)
   end)
-
 
   uv.run()
 
@@ -874,12 +853,11 @@ it('CMT in Text mode', function()
 
   local modem = GsmModem.new(Stream)
 
-  modem:on_recv_sms(function(self, sms)
-    assert_equal(1, called())
-    assert(sms)
-    assert_equal('+77777777777', sms:number())
-    assert_equal('1234567890', sms:text())
+  local sms
+  modem:on('sms::recv', function(self, event, data)
+    sms = data
     self:close()
+    called()
   end)
 
   modem:open(function()
@@ -889,11 +867,14 @@ it('CMT in Text mode', function()
 
   uv.timer():start(2000, function()
     modem:close()
-  end)
+  end):unref()
 
   uv.run()
 
   assert_equal(1, called(0))
+  assert(sms)
+  assert_equal('+77777777777', sms:number())
+  assert_equal('1234567890', sms:text())
 end)
 
 it('CMT in PDU mode', function()
@@ -901,12 +882,11 @@ it('CMT in PDU mode', function()
 
   local modem = GsmModem.new(Stream)
 
-  modem:on_recv_sms(function(self, sms)
-    assert_equal(1, called())
-    assert(sms)
-    assert_equal('+77777777777', sms:number())
-    assert_equal('1234567890', sms:text())
+  local sms
+  modem:on('sms::recv', function(self, event, data)
+    sms = data
     self:close()
+    called()
   end)
 
   modem:open(function()
@@ -916,11 +896,14 @@ it('CMT in PDU mode', function()
 
   uv.timer():start(2000, function()
     modem:close()
-  end)
+  end):unref()
 
   uv.run()
 
   assert_equal(1, called(0))
+  assert(sms)
+  assert_equal('+77777777777', sms:number())
+  assert_equal('1234567890', sms:text())
 end)
 
 it('CDS in PDU mode', function()
@@ -928,19 +911,11 @@ it('CDS in PDU mode', function()
 
   local modem = GsmModem.new(Stream)
 
-  modem:on_recv_status(function(self, sms)
-    assert_equal(1, called())
-    assert(sms)
-    assert_equal('+77777777777', sms:number())
-    assert_equal(40, sms:reference())
-    local _, status = assert_false(sms:delivery_status())
-    assert_table(status)
-    assert_equal(48, status.status)
-    assert_false(status.success)
-    assert_true(status.temporary)
-    assert_false(status.recovered)
-    assert_string(status.info)
+  local sms
+  modem:on('report::recv', function(self, event, data)
     self:close()
+    sms = data
+    called()
   end)
 
   modem:open(function()
@@ -950,11 +925,21 @@ it('CDS in PDU mode', function()
 
   uv.timer():start(2000, function()
     modem:close()
-  end)
+  end):unref()
 
   uv.run()
 
   assert_equal(1, called(0))
+  assert(sms)
+  assert_equal('+77777777777', sms:number())
+  assert_equal(40, sms:reference())
+  local _, status = assert_false(sms:delivery_status())
+  assert_table(status)
+  assert_equal(48, status.status)
+  assert_false(status.success)
+  assert_true(status.temporary)
+  assert_false(status.recovered)
+  assert_string(status.info)
 end)
 
 it('CDS in Text mode (single line)', function()
@@ -962,19 +947,11 @@ it('CDS in Text mode (single line)', function()
 
   local modem = GsmModem.new(Stream)
 
-  modem:on_recv_status(function(self, sms)
-    assert_equal(1, called())
-    assert(sms)
-    assert_equal('+77777777777', sms:number())
-    assert_equal(46, sms:reference())
-    local _, status = assert_false(sms:delivery_status())
-    assert_table(status)
-    assert_equal(48, status.status)
-    assert_false(status.success)
-    assert_true(status.temporary)
-    assert_false(status.recovered)
-    assert_string(status.info)
+  local sms
+  modem:on('report::recv', function(self, event, data)
+    sms = data
     self:close()
+    called()
   end)
 
   modem:open(function()
@@ -983,11 +960,22 @@ it('CDS in Text mode (single line)', function()
 
   uv.timer():start(2000, function()
     modem:close()
-  end)
+  end):unref()
 
   uv.run()
 
   assert_equal(1, called(0))
+
+  assert(sms)
+  assert_equal('+77777777777', sms:number())
+  assert_equal(46, sms:reference())
+  local _, status = assert_false(sms:delivery_status())
+  assert_table(status)
+  assert_equal(48, status.status)
+  assert_false(status.success)
+  assert_true(status.temporary)
+  assert_false(status.recovered)
+  assert_string(status.info)
 end)
 
 it('CDS in Text mode (multi line)', function()
@@ -995,19 +983,10 @@ it('CDS in Text mode (multi line)', function()
 
   local modem = GsmModem.new(Stream)
 
-  modem:on_recv_status(function(self, sms)
-    assert_equal(1, called())
-    assert(sms)
-    assert_equal('+77777777777', sms:number())
-    assert_equal(46, sms:reference())
-    local _, status = assert_false(sms:delivery_status())
-    assert_table(status)
-    assert_equal(48, status.status)
-    assert_false(status.success)
-    assert_true(status.temporary)
-    assert_false(status.recovered)
-    assert_string(status.info)
+  modem:on('report::recv', function(self, event, data)
+    sms = data
     self:close()
+    called()
   end)
 
   modem:open(function()
@@ -1016,11 +995,21 @@ it('CDS in Text mode (multi line)', function()
 
   uv.timer():start(2000, function()
     modem:close()
-  end)
+  end):unref()
 
   uv.run(debug.traceback)
 
   assert_equal(1, called(0))
+  assert(sms)
+  assert_equal('+77777777777', sms:number())
+  assert_equal(46, sms:reference())
+  local _, status = assert_false(sms:delivery_status())
+  assert_table(status)
+  assert_equal(48, status.status)
+  assert_false(status.success)
+  assert_true(status.temporary)
+  assert_false(status.recovered)
+  assert_string(status.info)
 end)
 
 it('CMTI', function()
@@ -1028,7 +1017,7 @@ it('CMTI', function()
 
   local modem = GsmModem.new(Stream)
 
-  modem:on_save_sms(function(self, index, mem)
+  modem:on('sms::save', function(self, event, index, mem)
     assert_equal(1, called())
     assert_equal(9, index)
     assert_equal('SM', mem)
@@ -1041,7 +1030,7 @@ it('CMTI', function()
 
   uv.timer():start(2000, function()
     modem:close()
-  end)
+  end):unref()
 
   uv.run()
 
@@ -1053,7 +1042,7 @@ it('CLIP', function()
 
   local modem = GsmModem.new(Stream)
 
-  modem:on_call(function(self, ani, ton)
+  modem:on('call', function(self, event, ani, ton)
     assert_equal(1, called())
     assert_equal('+77777777777', ani)
     assert_equal(145, ton)
@@ -1066,7 +1055,7 @@ it('CLIP', function()
 
   uv.timer():start(2000, function()
     modem:close()
-  end)
+  end):unref()
 
   uv.run()
 
