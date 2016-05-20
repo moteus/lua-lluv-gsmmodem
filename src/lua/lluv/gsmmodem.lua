@@ -903,7 +903,7 @@ end
 function USSDMessage:dcs(decode)
   if not self._dcs then return end
   if decode then
-    return _DCSBroadcastDecode(self._dcs)
+    return tpdu._DCSBroadcastDecode(self._dcs)
   end
   return self._dcs
 end
