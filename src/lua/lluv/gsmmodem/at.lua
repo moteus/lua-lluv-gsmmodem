@@ -664,6 +664,37 @@ function ATCommander:ErrorMode(mode, ...)
   return self:_basic_cmd(cmd, ...)
 end
 
+function ATCommander:Charsets(...)
+  local cb = pack_args(...)
+  return self:_basic_cmd('AT+CSCS=?', function(this, err, info)
+    if err then return cb(this, err, info) end
+
+    local msg = info:match("%+CSCS:%s*(.-)%s*$")
+    if not msg then return cb(this, E('EPROTO', nil, info)) end
+
+    if not msg:match('^%b()$') then
+      return cb(this, E('EPROTO', nil, info))
+    end
+
+    cb(this, nil, split_args(msg:sub(2, -2)))
+  end)
+end
+
+function ATCommander:Charset(...)
+  local cb, cp = pack_args(...)
+  local cmd = cp and string.format('AT+CSCS="%s"', cp) or 'AT+CSCS?'
+  return self:_basic_cmd(cmd, function(this, err, info)
+    if err then return cb(this, err, info) end
+    if not cp then
+      local msg = info:match("%+CSCS:%s*(.-)%s*$")
+      if not msg then return cb(this, E('EPROTO', nil, info)) end
+      info = unquot(msg)
+    end
+
+    cb(this, nil, info)
+  end)
+end
+
 function ATCommander:SimReady(...)
   local cb, timeout = pack_args(...)
   return self:_basic_cmd('AT+CPIN?', timeout, function(this, err, info)

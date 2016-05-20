@@ -979,7 +979,7 @@ it('Echo', function()
   assert_equal(1, counters.callback)
 end)
 
-it('CUSD', function()
+it('CUSD response status 0', function()
   local request  = 'AT+CUSD=1,"*100#",15'..EOL
   local msg      = '\004\018\0040\004H\000 \0047\0040\004?\004@\004>\004A\000 \004?\004@\0048\004=\004O\004B\000,\000 \004>\0046\0048\0044\0040\0049\004B\0045\000 \004>\004B\0042\0045\004B\000 \004?\004>\000 \000S\000M\000S\000.'
   local response = '+CUSD: 0,"' .. msg .. '",72' .. '\r\n\r\nOK\r\n'
@@ -994,6 +994,152 @@ it('CUSD', function()
     assert_equal(0,    status)
     assert_equal(msg,  message)
     assert_equal(72,   dcs)
+  end))
+
+  assert_equal(stream, stream:execute())
+
+  assert_equal(1, counters.on_command)
+  assert_equal(0, counters.callback)
+
+  assert_equal(stream, stream:append(request)) -- echo
+
+  assert_equal(stream, stream:execute())
+
+  assert_equal(1, counters.on_command)
+  assert_equal(0, counters.callback)
+
+  assert_equal(stream, stream:append(response))
+
+  assert_equal(stream, stream:execute())
+
+  assert_equal(1, counters.on_command)
+  assert_equal(1, counters.callback)
+end)
+
+it('CUSD response status 2', function()
+  local request  = 'AT+CUSD=1,"*100#",15'..EOL
+  local msg      = '\004\018\0040\004H\000 \0047\0040\004?\004@\004>\004A\000 \004?\004@\0048\004=\004O\004B\000,\000 \004>\0046\0048\0044\0040\0049\004B\0045\000 \004>\004B\0042\0045\004B\000 \004?\004>\000 \000S\000M\000S\000.'
+  local response = '+CUSD: 2' .. '\r\n\r\nOK\r\n'
+
+  stream:on_command(function(self, command)
+    counters'on_command'()
+    assert_equal(request, command)
+  end)
+
+  assert_true(command:CUSD("*100#", function(self, err, status, message, dcs)
+    counters'callback'()
+    assert_equal(2, status)
+    assert_nil(     message)
+    assert_nil(     dcs)
+  end))
+
+  assert_equal(stream, stream:execute())
+
+  assert_equal(1, counters.on_command)
+  assert_equal(0, counters.callback)
+
+  assert_equal(stream, stream:append(request)) -- echo
+
+  assert_equal(stream, stream:execute())
+
+  assert_equal(1, counters.on_command)
+  assert_equal(0, counters.callback)
+
+  assert_equal(stream, stream:append(response))
+
+  assert_equal(stream, stream:execute())
+
+  assert_equal(1, counters.on_command)
+  assert_equal(1, counters.callback)
+end)
+
+it('Charsets list', function()
+  local request  = 'AT+CSCS=?'..EOL
+  local response = '+CSCS: ("GSM","HEX","IRA","PCCP","PCDN","UCS2","8859-1")' .. OK
+
+  stream:on_command(function(self, command)
+    counters'on_command'()
+    assert_equal(request, command)
+  end)
+
+  assert_true(command:Charsets(function(self, err, charset)
+    counters'callback'()
+    assert_table(charset)
+    assert_equal( "GSM",    charset[1])
+    assert_equal( "HEX",    charset[2])
+    assert_equal( "IRA",    charset[3])
+    assert_equal( "PCCP",   charset[4])
+    assert_equal( "PCDN",   charset[5])
+    assert_equal( "UCS2",   charset[6])
+    assert_equal( "8859-1", charset[7])
+  end))
+
+  assert_equal(stream, stream:execute())
+
+  assert_equal(1, counters.on_command)
+  assert_equal(0, counters.callback)
+
+  assert_equal(stream, stream:append(request)) -- echo
+
+  assert_equal(stream, stream:execute())
+
+  assert_equal(1, counters.on_command)
+  assert_equal(0, counters.callback)
+
+  assert_equal(stream, stream:append(response))
+
+  assert_equal(stream, stream:execute())
+
+  assert_equal(1, counters.on_command)
+  assert_equal(1, counters.callback)
+end)
+
+it('Charset get', function()
+  local request  = 'AT+CSCS?'..EOL
+  local response = '+CSCS: "8859-1"' .. OK
+
+  stream:on_command(function(self, command)
+    counters'on_command'()
+    assert_equal(request, command)
+  end)
+
+  assert_true(command:Charset(function(self, err, charset)
+    counters'callback'()
+    assert_equal( "8859-1", charset)
+  end))
+
+  assert_equal(stream, stream:execute())
+
+  assert_equal(1, counters.on_command)
+  assert_equal(0, counters.callback)
+
+  assert_equal(stream, stream:append(request)) -- echo
+
+  assert_equal(stream, stream:execute())
+
+  assert_equal(1, counters.on_command)
+  assert_equal(0, counters.callback)
+
+  assert_equal(stream, stream:append(response))
+
+  assert_equal(stream, stream:execute())
+
+  assert_equal(1, counters.on_command)
+  assert_equal(1, counters.callback)
+end)
+
+it('Charset set', function()
+  local request  = 'AT+CSCS="8859-1"'..EOL
+  local response = OK
+
+  stream:on_command(function(self, command)
+    counters'on_command'()
+    assert_equal(request, command)
+  end)
+
+  assert_true(command:Charset("8859-1", function(self, err, status)
+    counters'callback'()
+    assert_equal( "OK", status)
   end))
 
   assert_equal(stream, stream:execute())

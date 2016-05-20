@@ -61,10 +61,8 @@ device:open(function(self, err, info)
     end)
 
     if USSD_NUMBER then
-      self:send_ussd(USSD_NUMBER, function(self, err, status, data, dcs)
-        if data then data = utils.DecodeUssd(data, dcs, CODE_PAGE) end
-
-        print('USSD Result:', err, status, data, dcs)
+      self:send_ussd(USSD_NUMBER, function(self, err, msg)
+        print('USSD Result:', err, msg and msg:status(), msg and msg:text(CODE_PAGE))
       end)
     end
 

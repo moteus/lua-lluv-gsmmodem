@@ -10,12 +10,13 @@
 --
 ------------------------------------------------------------------
 
-local tpdu  = require "tpdu"
-local Bit7  = require "tpdu.bit7"
-local iconv = require "iconv"
-local lpeg  = require "lpeg"
-local date  = require "date"
-local ut    = require "lluv.utils"
+local tpdu    = require "tpdu"
+local Bit7    = require "tpdu.bit7"
+local hex2bin = require "tpdu.utils".hex2bin
+local iconv   = require "iconv"
+local lpeg    = require "lpeg"
+local date    = require "date"
+local ut      = require "lluv.utils"
 
 local unpack = unpack or table.unpack
 
@@ -175,6 +176,10 @@ local function DecodeUssd(msg, dcs, to)
   local t, err = tpdu._DCSBroadcastDecode(dcs)
   if not t then return nil, err end
 
+  if string.match(msg, "^[0-9a-fA-F]+$") and (#msg % 2 == 0) then
+    msg = hex2bin(msg)
+  end
+
   local decoded, lang = msg, t.lang_code
   if t.group == 1 then
     -- Spec describe only UCS2 and BIT7
@@ -192,7 +197,11 @@ local function DecodeUssd(msg, dcs, to)
   elseif t.codec == 'BIT7' then
     decoded = DecodeGsm7(msg, to)
   elseif t.codec == 'BIT8' then
-    decoded = msg
+    if to then
+      decoded = iconv_encode('ASCII', to, msg)
+    else
+      decoded = msg
+    end
   end
 
   return decoded

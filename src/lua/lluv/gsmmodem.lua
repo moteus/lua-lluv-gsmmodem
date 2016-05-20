@@ -26,7 +26,7 @@ local date2ts   = utils.date2ts
 local DEFAULT_COMMAND_TIMEOUT = 60000
 local DEFAULT_COMMAND_DELAY   = 200
 
-local SMSMessage
+local SMSMessage, USSDMessage
 
 local REC_UNREAD    = 0
 local REC_READ      = 1
@@ -476,7 +476,11 @@ function GsmModem:send_sms(...)
 end
 
 function GsmModem:send_ussd(...)
-  return self:cmd():CUSD(...)
+  local cb, number, text, opt = pack_args(...)
+  return self:cmd():CUSD(number, text, opt, function(self, err, status, msg, dcs)
+    if err then return cb(self, err) end
+    return cb(self, nil, USSDMessage.new(msg, dcs, status))
+  end)
 end
 
 function GsmModem:at_wait(...)
@@ -859,6 +863,39 @@ end
 
 function SMSMessage:date()
   return self._date or self._smsc_date
+end
+
+end
+---------------------------------------------------------------
+
+---------------------------------------------------------------
+USSDMessage = ut.class() do
+
+function USSDMessage:__init(msg, dcs, status)
+  self._msg    = msg
+  self._dcs    = dcs
+  self._status = status
+
+  return self
+end
+
+function USSDMessage:text(to)
+  if self._msg and self._dcs then
+    return utils.DecodeUssd(self._msg, self._dcs)
+  end
+  return self._msg
+end
+
+function USSDMessage:status()
+  return self._status
+end
+
+function USSDMessage:dcs(decode)
+  if not self._dcs then return end
+  if decode then
+    return _DCSBroadcastDecode(self._dcs)
+  end
+  return self._dcs
 end
 
 end
