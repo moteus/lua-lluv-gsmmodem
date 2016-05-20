@@ -899,4 +899,123 @@ end)
 
 end
 
+local _ENV = TEST_CASE'commands' if ENABLE then
+
+local it = IT(_ENV or _M)
+
+local stream, command, counter
+
+function setup()
+  stream   = assert(at.Stream(SELF))
+  command  = assert(at.Commander(stream))
+  counters = Counter()
+end
+
+it('ATZ', function()
+  local request  = 'ATZ'..EOL
+  local response = OK
+
+  stream:on_command(function(self, command)
+    counters'on_command'()
+    assert_equal(request, command)
+  end)
+
+  assert_true(command:ATZ(function(self, err, status)
+    counters'callback'()
+    assert_equal('OK', status)
+  end))
+
+  assert_equal(stream, stream:execute())
+
+  assert_equal(1, counters.on_command)
+  assert_equal(0, counters.callback)
+
+  assert_equal(stream, stream:append(request)) -- echo
+
+  assert_equal(stream, stream:execute())
+
+  assert_equal(1, counters.on_command)
+  assert_equal(0, counters.callback)
+
+  assert_equal(stream, stream:append(response))
+
+  assert_equal(stream, stream:execute())
+
+  assert_equal(1, counters.on_command)
+  assert_equal(1, counters.callback)
+end)
+
+it('Echo', function()
+  local request  = 'ATE1'..EOL
+  local response = OK
+
+  stream:on_command(function(self, command)
+    counters'on_command'()
+    assert_equal(request, command)
+  end)
+
+  assert_true(command:Echo(true, function(self, err, status)
+    counters'callback'()
+    assert_equal('OK', status)
+  end))
+
+  assert_equal(stream, stream:execute())
+
+  assert_equal(1, counters.on_command)
+  assert_equal(0, counters.callback)
+
+  assert_equal(stream, stream:append(request)) -- echo
+
+  assert_equal(stream, stream:execute())
+
+  assert_equal(1, counters.on_command)
+  assert_equal(0, counters.callback)
+
+  assert_equal(stream, stream:append(response))
+
+  assert_equal(stream, stream:execute())
+
+  assert_equal(1, counters.on_command)
+  assert_equal(1, counters.callback)
+end)
+
+it('CUSD', function()
+  local request  = 'AT+CUSD=1,"*100#",15'..EOL
+  local msg      = '\004\018\0040\004H\000 \0047\0040\004?\004@\004>\004A\000 \004?\004@\0048\004=\004O\004B\000,\000 \004>\0046\0048\0044\0040\0049\004B\0045\000 \004>\004B\0042\0045\004B\000 \004?\004>\000 \000S\000M\000S\000.'
+  local response = '+CUSD: 0,"' .. msg .. '",72' .. '\r\n\r\nOK\r\n'
+
+  stream:on_command(function(self, command)
+    counters'on_command'()
+    assert_equal(request, command)
+  end)
+
+  assert_true(command:CUSD("*100#", function(self, err, status, message, dcs)
+    counters'callback'()
+    assert_equal(0,    status)
+    assert_equal(msg,  message)
+    assert_equal(72,   dcs)
+  end))
+
+  assert_equal(stream, stream:execute())
+
+  assert_equal(1, counters.on_command)
+  assert_equal(0, counters.callback)
+
+  assert_equal(stream, stream:append(request)) -- echo
+
+  assert_equal(stream, stream:execute())
+
+  assert_equal(1, counters.on_command)
+  assert_equal(0, counters.callback)
+
+  assert_equal(stream, stream:append(response))
+
+  assert_equal(stream, stream:execute())
+
+  assert_equal(1, counters.on_command)
+  assert_equal(1, counters.callback)
+end)
+
+end
+
 RUN()

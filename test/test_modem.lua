@@ -1160,4 +1160,24 @@ end)
 
 end
 
+local _ENV = TEST_CASE'gutils' if ENABLE then
+
+local it = IT(_ENV or _M)
+
+it('should decode uusd', function()
+  local msg = "*100#"
+  local dcs = 15
+  assert_equal(msg, gutils.DecodeUssd(msg, dcs, 'utf-8'))
+
+  local result = 'Ваш запрос принят, ожидайте ответ по SMS.'
+  local msg = "\004\018\0040\004H\000 \0047\0040\004?\004@\004>\004A\000 "
+    .. "\004?\004@\0048\004=\004O\004B\000,\000 \004>\0046\0048\0044"
+    .. "\0040\0049\004B\0045\000 \004>\004B\0042\0045\004B\000 \004?"
+    .. "\004>\000 \000S\000M\000S\000."
+  local dcs = 72
+  assert_equal(result, gutils.DecodeUssd(msg, dcs, 'utf-8'))
+end)
+
+end
+
 RUN()

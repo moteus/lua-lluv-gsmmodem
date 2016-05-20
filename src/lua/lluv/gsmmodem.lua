@@ -169,7 +169,7 @@ function GsmModem:__init(...)
   local stream  = at.Stream(self)
   local command = at.Commander(stream)
 
-  -- Время для ответо от модема
+  -- Время для ответа от модема
   local cmdTimeout = uv.timer():start(0, DEFAULT_COMMAND_TIMEOUT, function(timer)
     stream:_command_done('TIMEOUT')
   end):stop()

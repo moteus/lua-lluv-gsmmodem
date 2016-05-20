@@ -171,6 +171,33 @@ local function EncodeSmsSubmit(number, text, opt)
   return res
 end
 
+local function DecodeUssd(msg, dcs, to)
+  local t, err = tpdu._DCSBroadcastDecode(dcs)
+  if not t then return nil, err end
+
+  local decoded, lang = msg, t.lang_code
+  if t.group == 1 then
+    -- Spec describe only UCS2 and BIT7
+    local lang = DecodeGsm7(string.sub(msg, 1, 2))
+    if t.codec == 'UCS2' then
+      decoded = DecodeUcs2(string.sub(msg, 3), to)
+    elseif t.codec == 'BIT7' then
+      -- <LANG><CR>text
+      decoded = string.sub(DecodeGsm7(msg, to), 4)
+    end
+  elseif t.codec == 'UCS2' then
+    decoded = DecodeUcs2(msg, to)
+  elseif t.codec == 'UCS2' then
+    decoded = DecodeUcs2(msg, to)
+  elseif t.codec == 'BIT7' then
+    decoded = DecodeGsm7(msg, to)
+  elseif t.codec == 'BIT8' then
+    decoded = msg
+  end
+
+  return decoded
+end
+
 local function dummy()end
 
 local function is_callable(f) return (type(f) == 'function') and f end
@@ -316,6 +343,7 @@ return {
   EncodeGsm7      = EncodeGsm7;
   DecodeUcs2      = DecodeUcs2;
   DecodeGsm7      = DecodeGsm7;
+  DecodeUssd      = DecodeUssd;
   IsGsm7Compat    = IsGsm7;
   EncodeSmsSubmit = EncodeSmsSubmit;
   pack_args       = pack_args;

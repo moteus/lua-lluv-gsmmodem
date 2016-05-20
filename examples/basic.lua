@@ -62,10 +62,7 @@ device:open(function(self, err, info)
 
     if USSD_NUMBER then
       self:send_ussd(USSD_NUMBER, function(self, err, status, data, dcs)
-        if data then
-          local coder = (dcs == 15) and utils.DecodeGsm7 or utils.DecodeUcs2
-          data = coder(data, CODE_PAGE)
-        end
+        if data then data = utils.DecodeUssd(data, dcs, CODE_PAGE) end
 
         print('USSD Result:', err, status, data, dcs)
       end)
