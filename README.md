@@ -43,6 +43,13 @@
   end)
   ```
 
+* Send USSD
+ ```Lua
+  device:send_ussd('*100#', function(self, err, msg)
+    print('USSD Result:', err, msg and msg:status(), msg and msg:text())
+  end)
+  ```
+
 * Recv SMS
   ```Lua
   device:on('sms::recv', function(self, event, sms)

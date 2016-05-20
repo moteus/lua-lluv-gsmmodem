@@ -23,6 +23,12 @@ print("Lua    version: " .. (_G.jit and _G.jit.version or _G._VERSION))
 print("------------------------------------")
 print("")
 
+local function bin2hex(str)
+  local t = {string.byte(str, 1, #str)}
+  for i = 1, #t do t[i] = string.format('%.2X', t[i]) end
+  return table.concat(t)
+end
+
 ---------------------------------------------------------------
 local MocStream = ut.class() do
 
@@ -1171,23 +1177,49 @@ it('should decode uusd palin', function()
 end)
 
 it('should decode uusd IRA', function()
-  local result = 'Ваш запрос принят, ожидайте ответ по SMS.'
+  local result = bin2hex'Ваш запрос принят, ожидайте ответ по SMS.'
   local msg = "\004\018\0040\004H\000 \0047\0040\004?\004@\004>\004A\000 "
     .. "\004?\004@\0048\004=\004O\004B\000,\000 \004>\0046\0048\0044"
     .. "\0040\0049\004B\0045\000 \004>\004B\0042\0045\004B\000 \004?"
     .. "\004>\000 \000S\000M\000S\000."
   local dcs = 72
-  assert_equal(result, gutils.DecodeUssd(msg, dcs, 'utf-8'))
+
+  local s = assert_string(gutils.DecodeUssd(msg, dcs, 'utf-8'))
+  assert_equal(result, bin2hex(s))
 end)
 
 it('should decode uusd HEX', function()
-  local result = 'Ваш запрос принят, ожидайте ответ по SMS.'
+  local result = bin2hex'Ваш запрос принят, ожидайте ответ по SMS.'
   local dcs = 72
   local msg = "041204300448002004370430043F0440043E04410020043F044004" ..
         "38043D044F0442002C0020043E0436043804340430043904420435" ..
         "0020043E04420432043504420020043F043E00200053004D0053002E"
 
-  assert_equal(result, gutils.DecodeUssd(msg, dcs, 'utf-8'))
+  local s = assert_string(gutils.DecodeUssd(msg, dcs, 'utf-8'))
+  assert_equal(result, bin2hex(s))
+end)
+
+it('should decode uusd IRA', function()
+  local result = bin2hex'Ваш запрос принят, ожидайте ответ по SMS.'
+  local msg = "\004\018\0040\004H\000 \0047\0040\004?\004@\004>\004A\000 "
+    .. "\004?\004@\0048\004=\004O\004B\000,\000 \004>\0046\0048\0044"
+    .. "\0040\0049\004B\0045\000 \004>\004B\0042\0045\004B\000 \004?"
+    .. "\004>\000 \000S\000M\000S\000."
+  local dcs = 72
+
+  local s = assert_string(gutils.DecodeUssd(msg, dcs, 'utf8'))
+  assert_equal(result, bin2hex(s))
+end)
+
+it('should decode uusd HEX', function()
+  local result = bin2hex'Ваш запрос принят, ожидайте ответ по SMS.'
+  local dcs = 72
+  local msg = "041204300448002004370430043F0440043E04410020043F044004" ..
+        "38043D044F0442002C0020043E0436043804340430043904420435" ..
+        "0020043E04420432043504420020043F043E00200053004D0053002E"
+
+  local s = assert_string(gutils.DecodeUssd(msg, dcs, 'utf8'))
+  assert_equal(result, bin2hex(s))
 end)
 
 end

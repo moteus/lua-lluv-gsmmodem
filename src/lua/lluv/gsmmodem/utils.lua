@@ -25,11 +25,17 @@ local GSM_PAT = [=[^[ ^{}\%[~%]|@!?$_&%%#'"`,.()*+-/0123456789:;<=>ABCDEFGHIJKLM
 
 local BASE_ENCODE = 'ASCII'
 
-local iconv_cache = setmetatable({},{__mode = k})
+local iconv_cache = setmetatable({},{__mode = 'v'})
 
 local function iconv_encode(from, to, str)
   local key  = from .. ':' .. to
-  local conv = iconv_cache[ key ] or iconv.new(to, from)
+  local conv = iconv_cache[ key ] 
+  if not conv then
+    local err conv, err = iconv.new(to, from)
+    if not conv then
+      return nil, err or 'unsupported transcoding ' .. from .. ' -> ' .. to
+    end
+  end
   iconv_cache[ key ] = conv
 
   return conv:iconv(str)
