@@ -1173,52 +1173,31 @@ local it = IT(_ENV or _M)
 it('should decode uusd palin', function()
   local msg = "*100#"
   local dcs = 15
-  assert_equal(msg, gutils.DecodeUssd(msg, dcs, 'utf-8'))
+  assert_equal(msg, gutils.DecodeUssd(msg, dcs))
 end)
 
 it('should decode uusd IRA', function()
-  local result = bin2hex'Ваш запрос принят, ожидайте ответ по SMS.'
+  -- 'Ваш запрос принят, ожидайте ответ по SMS.' in UCS-2
+  local result = "041204300448002004370430043F0440043E04410020043F04400438043D044F0442002C0020043E04360438043404300439044204350020043E04420432043504420020043F043E00200053004D0053002E"
   local msg = "\004\018\0040\004H\000 \0047\0040\004?\004@\004>\004A\000 "
     .. "\004?\004@\0048\004=\004O\004B\000,\000 \004>\0046\0048\0044"
     .. "\0040\0049\004B\0045\000 \004>\004B\0042\0045\004B\000 \004?"
     .. "\004>\000 \000S\000M\000S\000."
   local dcs = 72
 
-  local s = assert_string(gutils.DecodeUssd(msg, dcs, 'utf-8'))
+  local s = assert_string(gutils.DecodeUssd(msg, dcs, 'ucs-2'))
   assert_equal(result, bin2hex(s))
 end)
 
 it('should decode uusd HEX', function()
-  local result = bin2hex'Ваш запрос принят, ожидайте ответ по SMS.'
+  -- 'Ваш запрос принят, ожидайте ответ по SMS.' in UCS-2
+  local result = "041204300448002004370430043F0440043E04410020043F04400438043D044F0442002C0020043E04360438043404300439044204350020043E04420432043504420020043F043E00200053004D0053002E"
   local dcs = 72
   local msg = "041204300448002004370430043F0440043E04410020043F044004" ..
         "38043D044F0442002C0020043E0436043804340430043904420435" ..
         "0020043E04420432043504420020043F043E00200053004D0053002E"
 
-  local s = assert_string(gutils.DecodeUssd(msg, dcs, 'utf-8'))
-  assert_equal(result, bin2hex(s))
-end)
-
-it('should decode uusd IRA', function()
-  local result = bin2hex'Ваш запрос принят, ожидайте ответ по SMS.'
-  local msg = "\004\018\0040\004H\000 \0047\0040\004?\004@\004>\004A\000 "
-    .. "\004?\004@\0048\004=\004O\004B\000,\000 \004>\0046\0048\0044"
-    .. "\0040\0049\004B\0045\000 \004>\004B\0042\0045\004B\000 \004?"
-    .. "\004>\000 \000S\000M\000S\000."
-  local dcs = 72
-
-  local s = assert_string(gutils.DecodeUssd(msg, dcs, 'utf8'))
-  assert_equal(result, bin2hex(s))
-end)
-
-it('should decode uusd HEX', function()
-  local result = bin2hex'Ваш запрос принят, ожидайте ответ по SMS.'
-  local dcs = 72
-  local msg = "041204300448002004370430043F0440043E04410020043F044004" ..
-        "38043D044F0442002C0020043E0436043804340430043904420435" ..
-        "0020043E04420432043504420020043F043E00200053004D0053002E"
-
-  local s = assert_string(gutils.DecodeUssd(msg, dcs, 'utf8'))
+  local s = assert_string(gutils.DecodeUssd(msg, dcs, 'ucs-2'))
   assert_equal(result, bin2hex(s))
 end)
 

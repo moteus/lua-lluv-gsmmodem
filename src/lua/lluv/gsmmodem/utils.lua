@@ -25,20 +25,81 @@ local GSM_PAT = [=[^[ ^{}\%[~%]|@!?$_&%%#'"`,.()*+-/0123456789:;<=>ABCDEFGHIJKLM
 
 local BASE_ENCODE = 'ASCII'
 
+local iconv_encode do
+
+local IconvError = ut.class() do
+
+local ERROR_NAMES = {
+  [ iconv.ERROR_NO_MEMORY  ] = 'NO_MEMORY';
+  [ iconv.ERROR_INVALID    ] = 'INVALID';
+  [ iconv.ERROR_INCOMPLETE ] = 'INCOMPLETE';
+  [ iconv.ERROR_FINALIZED  ] = 'FINALIZED';
+  [ iconv.ERROR_UNKNOWN    ] = 'UNKNOWN';
+}
+
+local ERROR_MESSAGES = {
+  [ iconv.ERROR_NO_MEMORY  ] = 'Failed to allocate enough memory in the conversion process';
+  [ iconv.ERROR_INVALID    ] = 'An invalid character was found in the input sequence';
+  [ iconv.ERROR_INCOMPLETE ] = 'An incomplete character was found in the input sequence';
+  [ iconv.ERROR_FINALIZED  ] = 'Trying to use an already-finalized converter';
+  [ iconv.ERROR_UNKNOWN    ] = 'There was an unknown error';
+}
+
+function IconvError:__init(no, ext)
+  self._no   = no
+  self._name = assert(ERROR_NAMES[self._no])
+  self._ext  = ext
+
+  return self
+end
+
+function IconvError:cat()  return 'ICONV' end
+
+function IconvError:no()   return self._no    end
+
+function IconvError:name() return self._name end
+
+function IconvError:msg()  return ERROR_MESSAGES[self._no] end
+
+function IconvError:ext()  return self._ext   end
+
+function IconvError:__eq(rhs)
+  return (self._no == rhs._no) and (self._name == rhs._name)
+end
+
+function IconvError:__tostring()
+  local err = string.format("[%s][%s] %s (%d)",
+    self:cat(), self:name(), self:msg(), self:no()
+  )
+  if self:ext() then
+    err = string.format("%s - %s", err, self:ext())
+  end
+  return err
+end
+
+end
+
 local iconv_cache = setmetatable({},{__mode = 'v'})
 
-local function iconv_encode(from, to, str)
+iconv_encode = function (from, to, str)
+  if from == to then return str end
+
   local key  = from .. ':' .. to
   local conv = iconv_cache[ key ] 
   if not conv then
     local err conv, err = iconv.new(to, from)
     if not conv then
-      return nil, err or 'unsupported transcoding ' .. from .. ' -> ' .. to
+      return nil, IconvError.new(iconv.ERROR_UNKNOWN, key)
     end
   end
   iconv_cache[ key ] = conv
 
-  return conv:iconv(str)
+  local msg, err = conv:iconv(str)
+  if err then err = IconvError.new(err, key) end
+
+  return msg, err 
+end
+
 end
 
 local function split_len(str, len, byte)
