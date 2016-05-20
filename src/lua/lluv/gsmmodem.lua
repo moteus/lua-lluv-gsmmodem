@@ -251,8 +251,8 @@ function GsmModem:configure(cb)
       next_fn()
     end) end;
 
-    function(command, next_fn) command:at('+CSCS="IRA"', function(this, err, data)
-      if err then return cb(this, err, 'CSCS', data) end
+    function(command, next_fn) command:Charset('IRA', function(this, err, data)
+      if err then return cb(this, err, 'Charset', data) end
       next_fn()
     end) end;
 
