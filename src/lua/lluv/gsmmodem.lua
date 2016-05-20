@@ -413,11 +413,21 @@ function GsmModem:send_sms(...)
   })
   local cmd  = self:cmd()
 
+  -- opt.timeout
+  -- how long wait response from smsc.
+
+  -- wait response from SMSC
+  -- if it `any` that means we accept any response even temporary
+  -- e.g. smsc can response with `message accepted but not delivery`
+  -- true means we should wait final response.
   local waitCds = opt and opt.waitReport
 
-  local wait_ctx wait_ctx = waitCds and {
-    set      = {};
-    ret      = {};
+  -- Context wich uses to handle URC DELIVER-REPORT.
+  -- If we send multipart sms then we still use single
+  -- context for all parts.
+  local wait_ctx = waitCds and {
+    set      = {}; -- set of message reference
+    ret      = {}; -- result for each
     cb       = cb;
     ref      = nil;
     progress = true;

@@ -57,6 +57,14 @@
   end)
   ```
 
+* Proceed SMS delivery report
+  ```Lua
+  device:on('report::recv', function(self, event, sms)
+    local success, status = sms:delivery_status()
+    print("SMS reference:", sms:reference(), "Number:", sms:number(), "Success:", success, "Status:", status.info)
+  end)
+  ```
+
 * Read SMS
   ```Lua
   -- read and delete first SMS from SIM card
