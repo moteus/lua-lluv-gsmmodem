@@ -243,7 +243,13 @@ local function DecodeUssd(msg, dcs, to)
   local t, err = tpdu._DCSBroadcastDecode(dcs)
   if not t then return nil, err end
 
-  if string.match(msg, "^[0-9a-fA-F]+$") and (#msg % 2 == 0) then
+  -- USSD can be in hex mode in case
+  --  * Charset set to HEX (at+cscs="HEX")
+  --  * Encoding in USSD message is UCS2.
+  -- But some devicses send USSD in UCS2 in raw mode
+  -- Also it require knowing about current charset
+  -- So we try here guess format.
+  if (not string.find(msg, "%X")) and (#msg % 2 == 0) then
     msg = hex2bin(msg)
   end
 

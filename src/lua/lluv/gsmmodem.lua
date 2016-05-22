@@ -361,10 +361,11 @@ function GsmModem:_on_cds_check(typ, mode, ...)
     ref, status, number = ...
     status = tpdu._DecodeStatus(status)
   else
-    local pdu, len = ...
-    pdu = tpdu.Decode(pdu, 'input', len)
-    --! @todo handle error
-    if not (pdu or pdu.mr or pdu.status) then return end
+    local pdu, len, err = ...
+    pdu, err = tpdu.Decode(pdu, 'input', len)
+    if not (pdu or pdu.mr or pdu.status) then
+      return self:emit('error', err)
+    end
     ref, status, number = pdu.mr, pdu.status, pdu.addr
   end
 
