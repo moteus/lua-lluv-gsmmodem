@@ -43,6 +43,17 @@
   end)
   ```
 
+* Send SMS and wait report
+ ```Lua
+  device:send_sms('+7777777', 'Hello world', {waitReport = 'final'}, function(self, err, ref, response)
+    if err or not response.success then
+      print('SMS Send fail:', err or response.info, 'Message reference:', ref or '<NONE>')
+    else
+      print('SMS Send pass', 'Message reference:', ref or '<NONE>')
+    end
+  end)
+  ```
+
 * Send USSD
  ```Lua
   device:send_ussd('*100#', function(self, err, msg)
