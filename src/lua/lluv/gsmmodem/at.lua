@@ -34,38 +34,46 @@ end
 
 local is_async_msg do
 
+-- URC without args
 local t = {
-  RING            = "Ringing",
-  BUSY            = "Busy",
-  ["NO CARRIER"]  = "No carrier",
-  ["NO DIALTONE"] = "No dialtone",
-  ["NO ANSWER"]   = "No answer",
+  RING                  = "Ringing",
+  BUSY                  = "Busy",
+  RDY                   = "Ready", -- ready to accept AT command
+  ["Call Ready"]        = "Call Ready",
+  ["GPS Ready"]         = "GPS Ready",
+  ["NO CARRIER"]        = "No carrier",
+  ["NO DIALTONE"]       = "No dialtone",
+  ["NO ANSWER"]         = "No answer",
+  ["NORMAL POWER DOWN"] = "Power off",
+}
+
+-- URC with args
+local tt = {
+  [ "+CRING" ] = true;
+  [ "+CLIP"  ] = true;
+  [ "+CMT"   ] = true;
+  [ "+CMTI"  ] = true;
+  [ "+CDS"   ] = true;
+  [ "+CDSI"  ] = true;
+  [ "+CBM"   ] = true;
+}
+
+-- This can be URC or Response to command
+local ttt = {
+  [ "+CPIN" ] = true;
+  [ "+CFUN" ] = true;
 }
 
 is_async_msg = function(line)
   local info = t[line]
   if info then return line, info end
 
-  info = line:match('^%+CRING:%s*(.-)%s*$')
-  if info then return "+CRING", info end
+  local typ, info = string.match(line, "^(%+[^:]+):%s*(.-)%s*$")
 
-  info = line:match('^%+CLIP:%s*(.-)%s*$')
-  if info then return "+CLIP", info end
-
-  info = line:match('^%+CMT:%s*(.-)%s*$')
-  if info then return "+CMT", info end
-
-  info = line:match('^%+CMTI:%s*(.-)%s*$')
-  if info then return "+CMTI", info end
-
-  info = line:match('^%+CDS:%s*(.-)%s*$')
-  if info then return "+CDS", info end
-
-  info = line:match('^%+CDSI:%s*(.-)%s*$')
-  if info then return "+CDSI", info end
-
-  info = line:match('^%+CBM:%s*(.-)%s*$')
-  if info then return "+CBM", info end
+  if typ then
+    if tt[typ]  then return typ, info, false end
+    if ttt[typ] then return typ, info, true  end
+  end
 end
 
 end
@@ -164,6 +172,13 @@ function ATStream:on_message(handler)
   return self
 end
 
+-- Register handler for URC candidate messages.
+--
+function ATStream:on_maybe_message(handler)
+  self._on_maybe_message = handler
+  return self
+end
+
 -- Register handler for unexpected responses.
 --
 -- This can be
@@ -201,6 +216,33 @@ function ATStream:_emit_message(...)
     self._on_message(self._self, ...)
   end
   return self
+end
+
+function ATStream:_emit_maybe_message(typ, info)
+  if typ == true then
+    if self._state.maybe_urc_typ then
+      typ, info = self._state.maybe_urc_typ, self._state.maybe_urc_info
+      self._state.maybe_urc_typ, self._state.maybe_urc_info = nil
+      if self._on_maybe_message then
+        self._on_maybe_message(self._self, typ, info, false)
+      end
+      self:_emit_message(typ, info)
+      return true
+    end
+  elseif typ == false then
+    if self._state.maybe_urc_typ then
+      self._state.maybe_urc_typ, self._state.maybe_urc_info = nil
+      if self._on_maybe_message then
+        self._on_maybe_message(self._self)
+      end
+      return true
+    end
+  else
+    self._state.maybe_urc_typ, self._state.maybe_urc_info = typ, info
+    if self._on_maybe_message then
+      self._on_maybe_message(self._self, typ, info, true)
+    end
+  end
 end
 
 function ATStream:_read_line()
@@ -254,8 +296,9 @@ local function execute_step(self, line)
     return self:_emit_message(typ, info, line)
   end
 
-  local urc_typ, urc_info = is_async_msg(line)
-  if urc_typ then
+  local urc_typ, urc_info, maybe_urc = is_async_msg(line)
+
+  if urc_typ and (not maybe_urc) then
       -- in text mode CDS can be 
       --  * '+CDS: 6,46,"+77777777777", ... \r\n'
       --  * '+CDS: \r\n 6,46,"+77777777777", ... \r\n'
@@ -274,22 +317,68 @@ local function execute_step(self, line)
 
   local t = self._active_queue:peek()
   if t then
+
+    -- We have to check command first. E.g we send command `ate0`.
+    -- and we read from port `+CFUN: 1<EOL>OK<EOL>`.
+    -- We can not determinte that this is URC + OK instead off
+    -- response to AT+CFUN=?. At least without echo I think.
+    if maybe_urc then
+      local cmd = ut.split_first(t[CMD_I], '[=?]')
+      if string.upper(cmd) ~= ('AT' .. string.upper(urc_typ)) then
+        self:_emit_message(urc_typ, urc_info)
+        return
+      end
+    end
+
     local status, info = is_final_msg(line)
 
     if status then -- command done
+      self:_emit_maybe_message(false)
       return self:_command_done(status, info)
+    end
+
+    local r = t[RES_I]
+
+    -- Assume URC can be only single line like +CFUN: ....
+    -- So if preview line was maybe_urc then this was URC message
+    if self:_emit_maybe_message(true) then
+      -- that means that preview read line mark as mabe URC and that means it was URC
+      -- so we have to remove this line from result. 
+      -- Output from port e.g. `+CFUN: 1<EOL>+CFUN: 1<EOL>+CFUN: 1<EOL>OK<EOL>`
+      -- Resultset have to be exists alread
+      assert(r[#r])
+      r[#r] = nil
     end
 
     local prompt = t[PROMPT_I]
     if prompt and prompt[1] == line then
       t[PROMPT_I] = nil
+      if maybe_urc then
+        self:_emit_message(urc_typ, urc_info)
+      end
       return self:_emit_command(prompt[2], prompt[3])
+    end
+
+    if maybe_urc then
+      -- this can be if we get `maybe URC` as first before response to same command
+      -- e.g. we send `AT+CFUN=1` and read from port `+CFUN: 1<EOL>+CFUN: 1<EOL>OK<EOL>`
+      -- When we read `+CFUN: 1` we can not be sure is it URC or not so just mark it
+      -- as suspisios
+      if self:_emit_maybe_message(urc_typ, urc_info) then
+        assert(r[#r])
+        r[#r] = nil
+      end
     end
 
     local r = t[RES_I] or {}
     r[#r + 1] = line
     t[RES_I] = r
 
+    return
+  end
+
+  if maybe_urc then
+    self:_emit_message(urc_typ, urc_info)
     return
   end
 
