@@ -10,7 +10,6 @@
 --
 ------------------------------------------------------------------
 
-local uv     = require "lluv"
 local ut     = require "lluv.utils"
 local Error  = require "lluv.gsmmodem.error".error
 local utils  = require "lluv.gsmmodem.utils"
@@ -353,9 +352,6 @@ local function execute_step(self, line)
     local prompt = t[PROMPT_I]
     if prompt and prompt[1] == line then
       t[PROMPT_I] = nil
-      if maybe_urc then
-        self:_emit_message(urc_typ, urc_info)
-      end
       return self:_emit_command(prompt[2], prompt[3])
     end
 
@@ -364,10 +360,7 @@ local function execute_step(self, line)
       -- e.g. we send `AT+CFUN=1` and read from port `+CFUN: 1<EOL>+CFUN: 1<EOL>OK<EOL>`
       -- When we read `+CFUN: 1` we can not be sure is it URC or not so just mark it
       -- as suspisios
-      if self:_emit_maybe_message(urc_typ, urc_info) then
-        assert(r[#r])
-        r[#r] = nil
-      end
+      self:_emit_maybe_message(urc_typ, urc_info)
     end
 
     local r = t[RES_I] or {}
