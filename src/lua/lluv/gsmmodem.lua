@@ -267,6 +267,13 @@ function GsmModem:configure(cb)
   }
 end
 
+function GsmModem:reset(err)
+  err = err or Error('REBOOT')
+  self._stream:reset(err)
+  self._cmd_timer:stop()
+  self._snd_timer:stop()
+end
+
 function GsmModem:open(cb)
   return self._device:open(function(dev, err, ...)
     if not err then
@@ -275,10 +282,9 @@ function GsmModem:open(cb)
           return self:emit('error', err, data)
         end
 
+        -- SIM300/900 send 0xFF when power on
         if data:sub(-1) == '\255' then
-          self._stream:reset(Error('REBOOT'))
-          self._cmd_timer:stop()
-          self._snd_timer:stop()
+          self:reset()
 
           self:emit('boot')
 
@@ -295,9 +301,7 @@ end
 
 function GsmModem:close(cb)
   if self._device then
-    self._stream:reset(Error'EINTER')
-    self._cmd_timer:close()
-    self._snd_timer:close()
+    self:reset(Error'EINTER')
     self._device:close(cb)
     self._device, self._cmd_timer, self._snd_timer = nil
   end
