@@ -688,7 +688,8 @@ it('iterare over all sms', function()
         assert_not_nil(err)
         assert_false(last)
         assert_nil(sms)
-        assert_equal('EPROTO', err:name())
+        assert_equal('TPDU',    err:cat())
+        assert_equal('EFORMAT', err:name())
       end
 
       if index == 6 then

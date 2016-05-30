@@ -61,8 +61,8 @@ local function DecodeSms(pdu, stat, ...)
   end
 
   if not t then
-    local info = string.format("SMS Decode fail: %s (len=%d data=%q)", e, len, pdu)
-    return nil, Error('EPROTO', nil, info)
+    return nil, e or 
+      Error('EPROTO', nil, string.format("SMS Decode fail: len=%d data=%q", len, pdu))
   end
 
   local sms = SMSMessage.new():decode_pdu(t)
