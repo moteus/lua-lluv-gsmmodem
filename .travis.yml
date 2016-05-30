@@ -37,16 +37,10 @@ before_install:
   - pip install --user hererocks
   - hererocks here -r^ --$LUA
   - export PATH=$PATH:$PWD/here/bin
-
-  - luarocks show lluv         || bash .travis/setup_uv.sh
-  - luarocks show lluv         || luarocks install lluv UV_DIR=$TRAVIS_BUILD_DIR/libuv
-  - luarocks show tpdu         || luarocks install tpdu         --from=https://luarocks.org/dev
-  - luarocks show rs232        || luarocks install rs232        --from=https://luarocks.org/dev
-  - luarocks show lluv-rs232   || luarocks install lluv-rs232   --from=https://luarocks.org/dev
-  - luarocks show EventEmitter || luarocks install EventEmitter --from=https://luarocks.org/dev
+  - luarocks show lluv || bash .travis/setup_uv.sh
 
 install:
-  - luarocks make rockspecs/lluv-gsmmodem-scm-0.rockspec
+  - luarocks make rockspecs/lluv-gsmmodem-scm-0.rockspec UV_DIR=$TRAVIS_BUILD_DIR/libuv
 
 before_script:
   - luarocks show lunitx           || luarocks install lunitx
