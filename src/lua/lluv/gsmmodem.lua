@@ -156,15 +156,30 @@ local emit_forward = function(event)
   end
 end
 
+local function is_rs232_device(t)
+  return type(t) == 'table'
+    and t.write
+    and t.start_read
+    and true
+end
+
 function GsmModem:__init(...)
   self.__base.__init(self, {wildcard = true, delimiter = '::'})
 
-  local device
-  if type(...) == 'string' then
-    device  = uv.rs232(...)
+  local device, opt
+  if is_rs232_device(...) then
+    device, opt = ...
+  elseif type(...) == 'string' then
+    local port port, opt = ...
+    device = uv.rs232(port, opt)
+  elseif type(...) == 'table' then
+    opt = ...
+    device = uv.rs232(opt.port or opt[1], opt)
   else
-    device = ...
+    error('Unsupported args')
   end
+
+  opt = opt or {}
 
   local stream  = at.Stream(self)
   local command = at.Commander(stream)
@@ -202,6 +217,9 @@ function GsmModem:__init(...)
   self._cds_wait  = {}
   self._reference = 0
   self._memory    = {}
+  self._config    = {
+    detect_power_on = opt.detect_power_on;
+  }
 
   self
     :on('+CMT',  on_recv_sms)
@@ -282,13 +300,15 @@ function GsmModem:open(cb)
           return self:emit('error', err, data)
         end
 
-        -- SIM300/900 send 0xFF when power on
-        if data:sub(-1) == '\255' then
-          self:reset()
+        if self._config.detect_power_on then
+          -- SIM300/900 send 0xFF when power on
+          if data:sub(-1) == '\255' then
+            self:reset()
 
-          self:emit('boot')
+            self:emit('boot')
 
-          return
+            return
+          end
         end
 
         self._stream:append(data)
