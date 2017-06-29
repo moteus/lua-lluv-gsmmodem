@@ -3,7 +3,7 @@
 [![Build Status](https://travis-ci.org/moteus/lua-lluv-gsmmodem.svg?branch=master)](https://travis-ci.org/moteus/lua-lluv-gsmmodem)
 [![Coverage Status](https://coveralls.io/repos/moteus/lua-lluv-gsmmodem/badge.svg)](https://coveralls.io/r/moteus/lua-lluv-gsmmodem)
 
-###Usage
+### Usage
 * Open and configure
  ```Lua
   local device = GsmModem.new('COM3', {
