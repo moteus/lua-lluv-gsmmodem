@@ -565,6 +565,9 @@ function GsmModem:read_sms(...)
     self:cmd(front, chain):CMGR(index, function(self, err, pdu, stat, ...)
       if err then return cb(self, err) end
 
+      -- may be there no sms with such index
+      if not pdu then return cb(self) end
+
       local sms, err = DecodeSms(pdu, stat, ...)
       if not sms then return cb(self, err) end
 

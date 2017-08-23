@@ -470,6 +470,63 @@ function teardown()
   uv.close(true)
 end
 
+it('read not existed sms', function()
+  local Stream, q = MakeStream{
+    {
+      'AT+CMGR=11\r\n',
+      '\r\nOK\r\n'
+    },
+  }
+
+  local modem = GsmModem.new(Stream)
+
+  modem:open(function(self, ...)
+    self:read_sms(11, function(self, err, sms, del)
+      assert_equal(1, called())
+      assert_equal(self, modem)
+      assert_nil  (err      )
+      assert_nil  (sms      )
+
+      self:close()
+    end)
+  end)
+
+  uv.run()
+
+  assert_equal(1, called(0))
+  assert_true(q:empty())
+end)
+
+it('read invalid memory index', function()
+  local Stream, q = MakeStream{
+    {
+      'AT+CMGR=11\r\n',
+      '\r\n+CMS ERROR: 321\r\n'
+    },
+  }
+
+  local modem = GsmModem.new(Stream)
+
+  modem:open(function(self, ...)
+    self:read_sms(11, function(self, err, sms, del)
+      assert_equal(1, called())
+      assert_equal(self, modem)
+      assert_not_nil(err      )
+      assert_equal('GSM-AT', err:cat())
+      assert_equal('CMS',    err:name())
+      assert_equal(321,      err:no())
+      assert_nil(sms      )
+
+      self:close()
+    end)
+  end)
+
+  uv.run()
+
+  assert_equal(1, called(0))
+  assert_true(q:empty())
+end)
+
 it('read sms with delete', function()
   local Stream, q = MakeStream{
     {
