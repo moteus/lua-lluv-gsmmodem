@@ -5,7 +5,7 @@
 
 ### Usage
 * Open and configure
- ```Lua
+  ```Lua
   local device = GsmModem.new('COM3', {
       baud         = '_9600';
       data_bits    = '_8';
@@ -34,17 +34,17 @@
       -------------------------------------------
     end)
   end)
-```
+  ```
 
 * Send SMS
- ```Lua
+  ```Lua
   device:send_sms('+7777777', 'Hello world', function(self, err, ref)
     print('SMS Send result:', err or 'OK', 'Message reference:', ref or '<NONE>')
   end)
   ```
 
 * Send SMS and wait report
- ```Lua
+  ```Lua
   device:send_sms('+7777777', 'Hello world', {waitReport = 'final'}, function(self, err, ref, response)
     if err or not response.success then
       print('SMS Send fail:', err or response.info, 'Message reference:', ref or '<NONE>')
@@ -55,7 +55,7 @@
   ```
 
 * Send USSD
- ```Lua
+  ```Lua
   device:send_ussd('*100#', function(self, err, msg)
     print('USSD Result:', err, msg and msg:status(), msg and msg:text())
   end)
