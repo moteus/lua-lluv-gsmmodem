@@ -181,6 +181,37 @@ function teardown()
   uv.close(true)
 end
 
+local hello_utf8   = '\208\191\209\128\208\184\208\178\208\181\209\130'
+
+it('send utf8 sms', function()
+  local Stream = MakeStream{
+    {
+      'AT+CMGS=25\r\n',
+      '\r> ',
+    };
+    {
+      '0021010B917777777777F700080C043F04400438043204350442\026',
+      'AT+CMGS=25\r\n+CMGS: 1,\r\n\r\nOK\r\n'
+    };
+  }
+
+  local modem = GsmModem.new(Stream)
+
+  modem:open(function(self, ...)
+    self:send_sms('+77777777777', hello_utf8, {charset = 'utf-8'}, function(self, err, res)
+      assert_equal(1, called())
+      assert_equal(self, modem)
+      assert_nil  (err      )
+      assert_equal(1, res)
+      self:close()
+    end)
+  end)
+
+  uv.run()
+
+  assert_equal(1, called(0))
+end)
+
 it('multipart sms', function()
   local Stream = MakeStream{
     {
@@ -222,6 +253,48 @@ it('multipart sms', function()
       assert_equal(1, res[1])
       assert_equal(2, res[2])
       assert_equal(3, res[3])
+
+      self:close()
+    end)
+  end)
+
+  uv.run()
+
+  assert_equal(1, called(0))
+end)
+
+it('multipart utf8 sms', function()
+  local Stream = MakeStream{
+    {
+      'AT+CMGS=149\r\n',
+      '\r> ',
+    };
+    {
+      '0061010B917777777777F7000888050003010201043F04400438043204350442043F04400438043204350442043F04400438043204350442043F04400438043204350442043F04400438043204350442043F04400438043204350442043F04400438043204350442043F04400438043204350442043F04400438043204350442043F04400438043204350442043F0440043804320435\026',
+      'AT+CMGS=149\r\n+CMGS: 1,\r\n\r\nOK\r\n'
+    };
+
+    {
+      'AT+CMGS=129\r\n',
+      '\r> ',
+    };
+    {
+      '0061010B917777777777F70008740500030102020442043F04400438043204350442043F04400438043204350442043F04400438043204350442043F04400438043204350442043F04400438043204350442043F04400438043204350442043F04400438043204350442043F04400438043204350442043F04400438043204350442\026',
+      'AT+CMGS=129\r\n+CMGS: 2,\r\n\r\nOK\r\n'
+    };
+
+  }
+
+  local modem = GsmModem.new(Stream)
+
+  modem:open(function(self, ...)
+    self:send_sms('+77777777777', hello_utf8:rep(20), {charset = 'utf-8'}, function(self, err, res)
+      assert_equal(1, called())
+      assert_equal(self, modem)
+      assert_nil  (err      )
+      assert_table(res      )
+      assert_equal(1, res[1])
+      assert_equal(2, res[2])
 
       self:close()
     end)

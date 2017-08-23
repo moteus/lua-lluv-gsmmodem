@@ -151,9 +151,9 @@ local CODECS = {
   UCS2 = EncodeUcs2;
 }
 
-local function EncodeText(str, codec, len)
+local function EncodeText(str, codec, len, charset)
   len = len or MAX_SYMBOLS[codec]
-  return CODECS[codec](str, len)
+  return CODECS[codec](str, len, charset)
 end
 
 local function EncodeValidity(vp)
@@ -190,10 +190,11 @@ local function EncodeSmsSubmit(number, text, opt)
   local rejectDuplicates    = not not opt.rejectDuplicates
   local replayPath          = not not opt.replayPath
   local flash               = not not opt.flash
+  local charset             = opt.charset
 
   local encodedText = EncodeGsm7(text, MAX_SYMBOLS.BIT7)
   local codec = encodedText and 'BIT7' or 'UCS2'
-  if not encodedText then encodedText = EncodeText(text, codec) end
+  if not encodedText then encodedText = EncodeText(text, codec, nil, charset) end
 
   local pdu = { sc = smsc, addr = number,
     tp = {
@@ -224,7 +225,7 @@ local function EncodeSmsSubmit(number, text, opt)
       len = MAX_SYMBOLS['UCS2'] - ielen
     end
 
-    encodedText = EncodeText(text, codec, len)
+    encodedText = EncodeText(text, codec, len, charset)
     pdu.udh = {{ iei = iei, ref = ref, cnt = #encodedText}}
 
     local i = 1

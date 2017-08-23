@@ -435,6 +435,7 @@ function GsmModem:send_sms(...)
     rejectDuplicates    = opt and opt.rejectDuplicates;
     replayPath          = opt and opt.replayPath;
     flash               = opt and opt.flash;
+    charset             = opt and opt.charset;
   })
   local cmd  = self:cmd()
 
@@ -688,16 +689,17 @@ function SMSMessage:decode_pdu(pdu, state)
     if not pdu then return nil, err end
   end
 
-  self._smsc              = pdu.sc.number       -- SMS Center
-  self._validity          = pdu.vp              -- Validity of SMS messages
-  self._reject_duplicates = pdu.tp.rd           -- Whether to reject duplicates
-  self._udh               = pdu.udh             -- User Data Header
-  self._number            = pdu.addr.number     -- Sender or recipient number
-  self._text              = pdu.ud              -- Text for SMS
-  self._type              = pdu.tp.mti          -- Type of message
-  self._delivery_status   = pdu.status          -- In delivery reports: status
-  self._replay_path       = pdu.tp.rp           -- Indicates whether "Reply via same center" is set.
-  self._reference         = pdu.mr              -- Message reference.
+  self._smsc                   = pdu.sc.number   -- SMS Center
+  self._validity               = pdu.vp          -- Validity of SMS messages
+  self._reject_duplicates      = pdu.tp.rd       -- Whether to reject duplicates
+  self._udh                    = pdu.udh         -- User Data Header
+  self._number                 = pdu.addr.number -- Sender or recipient number
+  self._text                   = pdu.ud          -- Text for SMS
+  self._type                   = pdu.tp.mti      -- Type of message
+  self._delivery_status        = pdu.status      -- In delivery reports: status
+  self._replay_path            = pdu.tp.rp       -- Indicates whether "Reply via same center" is set.
+  self._reference              = pdu.mr          -- Message reference.
+  self._request_status_report = pdu.tp.srr       -- Status report request
   if pdu.dcs then
     self._class           = pdu.dcs.class       -- SMS class (0 is flash SMS, 1 is normal one).
     self._codec           = pdu.dcs.codec       -- Type of coding. (pdu.dcs.codec, pdu.dcs.compressed)
@@ -736,6 +738,7 @@ function SMSMessage:pdu()
     mti = self._type;
     rd  = self._reject_duplicates;
     rp  = self._replay_path;
+    srr = self._request_status_report
   }
 
   pdu.dcs = {
@@ -784,16 +787,16 @@ function SMSMessage:memory()
   return self._memory, self._location
 end
 
-function SMSMessage:set_text(text, encode)
+function SMSMessage:set_text(text, charset)
   local codec
 
   assert(text)
 
-  if not encode and utils.IsGsm7Compat(text) then
+  if utils.IsGsm7Compat(text) then
     text  = utils.EncodeGsm7(text)
     codec = 'BIT7'
   else
-    text = utils.EncodeUcs2(text, nil, encode)
+    text = utils.EncodeUcs2(text, nil, charset)
     codec = 'UCS2'
   end
 
@@ -803,16 +806,16 @@ function SMSMessage:set_text(text, encode)
   return self
 end
 
-function SMSMessage:text(encode)
+function SMSMessage:text(charset)
   local text, codec = self._text, self._codec
 
   if codec == 'BIT7' then
-    text  = utils.DecodeGsm7(text, encode)
-    codec = encode or 'ASCII'
+    text  = utils.DecodeGsm7(text, charset)
+    codec = charset or 'ASCII'
   elseif codec == 'UCS2' then
     if encode then
-      text  = utils.DecodeUcs2(text, encode)
-      codec = encode
+      text  = utils.DecodeUcs2(text, charset)
+      codec = charset
     end
   end
 
@@ -835,6 +838,15 @@ end
 
 function SMSMessage:reject_duplicates()
   return not not self._reject_duplicates
+end
+
+function SMSMessage:set_request_status_report(v)
+  self._request_status_report = not not v
+  return self
+end
+
+function SMSMessage:request_status_report(v)
+  return not not self._request_status_report
 end
 
 function SMSMessage:set_reference(v)
