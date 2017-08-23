@@ -24,6 +24,7 @@ local unpack = unpack or table.unpack
 local GSM_PAT = [=[^[ ^{}\%[~%]|@!?$_&%%#'"`,.()*+-/0123456789:;<=>ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz]*$]=]
 
 local BASE_ENCODE = 'ASCII'
+local UCS2_ENCODE = 'UCS-2BE'
 
 local iconv_encode do
 
@@ -128,7 +129,7 @@ end
 local function EncodeUcs2(str, len, from)
   from = from or BASE_ENCODE
   local err
-  str, err = iconv_encode(from, 'ucs-2', str)
+  str, err = iconv_encode(from, UCS2_ENCODE, str)
   if not str then return nil, err end
 
   return len and split_len(str, len * 2) or str
@@ -144,7 +145,7 @@ end
 
 local function DecodeUcs2(str, to)
   to = to or BASE_ENCODE
-  return iconv_encode('ucs-2', to, str)
+  return iconv_encode(UCS2_ENCODE, to, str)
 end
 
 local MAX_SYMBOLS = {BIT7 = 160; BIT8 = 140; UCS2 = 70}

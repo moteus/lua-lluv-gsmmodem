@@ -1336,7 +1336,7 @@ it('should decode uusd IRA', function()
     .. "\004>\000 \000S\000M\000S\000."
   local dcs = 72
 
-  local s = assert_string(gutils.DecodeUssd(msg, dcs, 'ucs-2'))
+  local s = assert_string(gutils.DecodeUssd(msg, dcs, 'UCS-2BE'))
   assert_equal(result, bin2hex(s))
 end)
 
@@ -1348,7 +1348,7 @@ it('should decode uusd HEX', function()
         "38043D044F0442002C0020043E0436043804340430043904420435" ..
         "0020043E04420432043504420020043F043E00200053004D0053002E"
 
-  local s = assert_string(gutils.DecodeUssd(msg, dcs, 'ucs-2'))
+  local s = assert_string(gutils.DecodeUssd(msg, dcs, 'UCS-2BE'))
   assert_equal(result, bin2hex(s))
 end)
 
