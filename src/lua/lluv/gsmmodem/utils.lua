@@ -25,6 +25,9 @@ local GSM_PAT = [=[^[ ^{}\%[~%]|@!?$_&%%#'"`,.()*+-/0123456789:;<=>ABCDEFGHIJKLM
 
 local BASE_ENCODE = 'ASCII'
 local UCS2_ENCODE = 'UCS-2BE'
+local UCS2_LE_ENCODE = 'UCS-2LE'
+local LE_BOM = '^' .. hex2bin'FFFE'
+local BE_BOM = '^' .. hex2bin'FEFF'
 
 local iconv_encode do
 
@@ -145,6 +148,16 @@ end
 
 local function DecodeUcs2(str, to)
   to = to or BASE_ENCODE
+
+  if string.find(str, LE_BOM) then
+    str = string.sub(str, 3)
+    return iconv_encode(UCS2_LE_ENCODE, to, str)
+  end
+
+  if string.find(str, BE_BOM) then
+    str = string.sub(str, 3)
+  end
+
   return iconv_encode(UCS2_ENCODE, to, str)
 end
 

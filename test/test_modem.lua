@@ -1321,6 +1321,13 @@ local _ENV = TEST_CASE'gutils' if ENABLE then
 
 local it = IT(_ENV or _M)
 
+local BOM_LE        = '\255\254'
+local BOM_BE        = '\254\255'
+local hello_utf8    = '\208\191\209\128\208\184\208\178\208\181\209\130'
+local hello_ucs2_le = BOM_LE .. '?\4@\0048\0042\0045\4B\4'
+local hello_ucs2_be = BOM_BE .. '\4?\4@\0048\0042\0045\4B'
+local hello_ucs2    = '\4?\4@\0048\0042\0045\4B'
+
 it('should decode uusd palin', function()
   local msg = "*100#"
   local dcs = 15
@@ -1350,6 +1357,21 @@ it('should decode uusd HEX', function()
 
   local s = assert_string(gutils.DecodeUssd(msg, dcs, 'UCS-2BE'))
   assert_equal(result, bin2hex(s))
+end)
+
+it('should decode ucs2 as big endian by default', function()
+  local s = assert_string(gutils.DecodeUcs2(hello_ucs2, 'utf-8'))
+  assert_equal(bin2hex(hello_utf8), bin2hex(s))
+end)
+
+it('should decode ucs2 with big endian BOM', function()
+  local s = assert_string(gutils.DecodeUcs2(hello_ucs2_be, 'utf-8'))
+  assert_equal(bin2hex(hello_utf8), bin2hex(s))
+end)
+
+it('should decode ucs2 with little endian BOM', function()
+  local s = assert_string(gutils.DecodeUcs2(hello_ucs2_le, 'utf-8'))
+  assert_equal(bin2hex(hello_utf8), bin2hex(s))
 end)
 
 end
