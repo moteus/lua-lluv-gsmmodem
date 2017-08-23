@@ -183,6 +183,26 @@ end
 
 local hello_utf8   = '\208\191\209\128\208\184\208\178\208\181\209\130'
 
+it('send sms with unknown charset', function()
+  local Stream = MakeStream{}
+
+  local modem = GsmModem.new(Stream)
+
+  modem:open(function(self, ...)
+    self:send_sms('+77777777777', hello_utf8, {charset = 'some-crazy-charset'}, function(self, err, res)
+      assert_equal(1, called())
+      assert_equal(self, modem)
+      assert_not_nil(err )
+      assert_equal('ICONV', err:cat())
+      self:close()
+    end)
+  end)
+
+  uv.run()
+
+  assert_equal(1, called(0))
+end)
+
 it('send utf8 sms', function()
   local Stream = MakeStream{
     {
@@ -198,7 +218,7 @@ it('send utf8 sms', function()
   local modem = GsmModem.new(Stream)
 
   modem:open(function(self, ...)
-    self:send_sms('+77777777777', hello_utf8, {charset = 'utf8'}, function(self, err, res)
+    self:send_sms('+77777777777', hello_utf8, {charset = 'utf-8'}, function(self, err, res)
       assert_equal(1, called())
       assert_equal(self, modem)
       assert_nil  (err      )
@@ -288,7 +308,7 @@ it('multipart utf8 sms', function()
   local modem = GsmModem.new(Stream)
 
   modem:open(function(self, ...)
-    self:send_sms('+77777777777', hello_utf8:rep(20), {charset = 'utf8'}, function(self, err, res)
+    self:send_sms('+77777777777', hello_utf8:rep(20), {charset = 'utf-8'}, function(self, err, res)
       assert_equal(1, called())
       assert_equal(self, modem)
       assert_nil  (err      )

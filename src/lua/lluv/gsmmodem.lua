@@ -427,7 +427,7 @@ end
 function GsmModem:send_sms(...)
   local cb, number, text, opt = pack_args(...)
   text = text or ''
-  local pdus = utils.EncodeSmsSubmit(number, text, {
+  local pdus, err = utils.EncodeSmsSubmit(number, text, {
     reference           = self:next_reference();
     requestStatusReport = true;
     validity            = opt and opt.validity;
@@ -437,6 +437,12 @@ function GsmModem:send_sms(...)
     flash               = opt and opt.flash;
     charset             = opt and opt.charset;
   })
+
+  if not pdus then
+    uv.defer(cb, self, err)
+    return self
+  end
+
   local cmd  = self:cmd()
 
   -- opt.timeout

@@ -127,7 +127,9 @@ end
 
 local function EncodeUcs2(str, len, from)
   from = from or BASE_ENCODE
-  str = iconv_encode(from, 'ucs-2', str)
+  local err
+  str, err = iconv_encode(from, 'ucs-2', str)
+  if not str then return nil, err end
 
   return len and split_len(str, len * 2) or str
 end
@@ -192,9 +194,10 @@ local function EncodeSmsSubmit(number, text, opt)
   local flash               = not not opt.flash
   local charset             = opt.charset
 
-  local encodedText = EncodeGsm7(text, MAX_SYMBOLS.BIT7)
+  local encodedText, err = EncodeGsm7(text, MAX_SYMBOLS.BIT7)
   local codec = encodedText and 'BIT7' or 'UCS2'
-  if not encodedText then encodedText = EncodeText(text, codec, nil, charset) end
+  if not encodedText then encodedText, err = EncodeText(text, codec, nil, charset) end
+  if not encodedText then return nil, err end
 
   local pdu = { sc = smsc, addr = number,
     tp = {

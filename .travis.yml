@@ -43,7 +43,6 @@ install:
   - luarocks make rockspecs/lluv-gsmmodem-scm-0.rockspec UV_DIR=$TRAVIS_BUILD_DIR/libuv
 
 before_script:
-  - luarocks show lua-iconv        || luarocks install lua-iconv
   - luarocks show lunitx           || luarocks install lunitx
   - luarocks show luacov-coveralls || luarocks install luacov-coveralls
 
