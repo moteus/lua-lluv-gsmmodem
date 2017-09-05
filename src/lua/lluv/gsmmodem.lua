@@ -785,7 +785,7 @@ end
 
 function SMSMessage:set_memory(mem, loc)
   self._memory   = mem
-  self._location = location
+  self._location = loc
   return self
 end
 
@@ -819,7 +819,7 @@ function SMSMessage:text(charset)
     text  = utils.DecodeGsm7(text, charset)
     codec = charset or 'ASCII'
   elseif codec == 'UCS2' then
-    if encode then
+    if charset then
       text  = utils.DecodeUcs2(text, charset)
       codec = charset
     end
@@ -897,6 +897,15 @@ end
 
 function SMSMessage:type()
   return self._type
+end
+
+function SMSMessage:set_smsc(v)
+  self._smsc = v
+  return self
+end
+
+function SMSMessage:smsc()
+  return self._smsc
 end
 
 function SMSMessage:set_storage(v)
