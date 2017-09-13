@@ -1317,6 +1317,62 @@ end)
 
 end
 
+local _ENV = TEST_CASE'send_ussd' if ENABLE then
+
+local it = IT(_ENV or _M)
+
+function setup()
+  gutils.reset_reference()
+  call_count = 0
+  uv.timer():start(TEST_TIMEOUT, function() uv.stop() end):unref()
+end
+
+function teardown()
+  uv.close(true)
+end
+
+it('should returns ussd message', function()
+  local msg_ucs2 = '\0008\0001\000.\0006\0000\000 \004@\000.\000\n\004"\004>\004G\004=\004K\0049\000 \004?\004@\004>\0043\004=\004>\0047\000 \004?\004>\0043\004>\0044\004K\000 \0042\000 \0042\0040\004H\0045\004<\000 \0043\004>\004@\004>\0044\0045\000!\000 \0007\0044\004=\000.\000 \0041\0045\004A\004?\004;\0040\004B\004=\004>\000!\000 \004\031\004>\0044\004:\004;\000.\000:\000 \000*\0003\0000\0009\000#'
+  local msg_utf8 = '81.60 \209\128.\n\208\162\208\190\209\135\208\189\209\139\208\185 \208\191\209\128\208\190\208\179\208\189\208\190\208\183 \208\191\208\190\208\179\208\190\208\180\209\139 \208\178 \208\178\208\176\209\136\208\181\208\188 \208\179\208\190\209\128\208\190\208\180\208\181! 7\208\180\208\189. \208\177\208\181\209\129\208\191\208\187\208\176\209\130\208\189\208\190! \208\159\208\190\208\180\208\186\208\187.: *309#'
+
+  local status, dcs = 0, 72
+  local Stream = MakeStream{
+    {
+      'AT+CUSD=1,"*102#",15\r\n',
+      ('+CUSD: %d,"%s",%d\r\n\r\nOK\r\n'):format(status, msg_ucs2, dcs)
+    };
+  }
+
+  local modem = GsmModem.new(Stream)
+
+  local ussd
+  modem:open(function(self, ...)
+    self:send_ussd('*102#', function(self, err, res)
+      assert_equal(1, called())
+      assert_equal(self, modem)
+      assert_nil  (err      )
+      ussd = assert_table(res)
+      self:close()
+    end)
+  end)
+
+  uv.run()
+
+  assert_equal(1, called(0))
+
+  assert_equal(dcs, ussd:dcs())
+  local t = assert_table(ussd:dcs(true))
+  assert_equal('UCS2', t.codec)
+  assert_false(t.compressed)
+  assert_equal(4, t.group)
+  assert_equal(0, t.reserved)
+  assert_equal(msg_ucs2, ussd:text('UCS-2BE'))
+  assert_equal(status, ussd:status())
+  assert_equal(msg_utf8, ussd:text('utf-8'))
+end)
+
+end
+
 local _ENV = TEST_CASE'gutils' if ENABLE then
 
 local it = IT(_ENV or _M)

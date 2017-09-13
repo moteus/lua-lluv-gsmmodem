@@ -958,7 +958,7 @@ end
 
 function USSDMessage:text(to)
   if self._msg and self._dcs then
-    return utils.DecodeUssd(self._msg, self._dcs)
+    return utils.DecodeUssd(self._msg, self._dcs, to)
   end
   return self._msg
 end
@@ -986,6 +986,7 @@ return {
 
   new        = GsmModem.new;
   SMSMessage = SMSMessage.new;
+  USSDMessage = USSDMessage.new;
 
   REC_UNREAD    = REC_UNREAD;
   REC_READ      = REC_READ;
