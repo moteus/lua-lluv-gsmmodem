@@ -986,10 +986,15 @@ function ATCommander:CUSD(...)
     local msg = info:match("%+CUSD:%s*(.-)%s*$")
     if not msg then return cb(this, E('EPROTO', nil, info)) end
 
-    local data = split_args(msg)
-    if not data then return cb(this, E('EPROTO', nil, info)) end
+    local data, m, dcs = split_args(msg)
+    if not data then
+      -- some modems returns UCS2 directly so it really fail to split
+      m, msg, dcs = msg:match('^(%d-),"(.-)",(%d+)$')
+      if not m then return cb(this, E('EPROTO', nil, info)) end
+    else
+      m, msg, dcs = unpack(data)
+    end
 
-    local m, msg, dcs = unpack(data)
     m, dcs = tonumber(m), tonumber(dcs)
 
     cb(this, nil, m, msg, dcs)

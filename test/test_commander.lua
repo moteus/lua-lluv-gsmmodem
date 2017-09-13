@@ -979,6 +979,43 @@ it('Echo', function()
   assert_equal(1, counters.callback)
 end)
 
+it('CUSD response with quotes inside text', function()
+  local request  = 'AT+CUSD=1,"*100#",15'..EOL
+  local msg      = '\0008\0001\000.\0006\0000\000 \004@\000.\000\n\004"\004>\004G\004=\004K\0049\000 \004?\004@\004>\0043\004=\004>\0047\000 \004?\004>\0043\004>\0044\004K\000 \0042\000 \0042\0040\004H\0045\004<\000 \0043\004>\004@\004>\0044\0045\000!\000 \0007\0044\004=\000.\000 \0041\0045\004A\004?\004;\0040\004B\004=\004>\000!\000 \004\031\004>\0044\004:\004;\000.\000:\000 \000*\0003\0000\0009\000#'
+  local response = '+CUSD: 0,"' .. msg .. '",72' .. '\r\n\r\nOK\r\n'
+
+  stream:on_command(function(self, command)
+    counters'on_command'()
+    assert_equal(request, command)
+  end)
+
+  assert_true(command:CUSD("*100#", function(self, err, status, message, dcs)
+    counters'callback'()
+    assert_equal(0,    status)
+    assert_equal(msg,  message)
+    assert_equal(72,   dcs)
+  end))
+
+  assert_equal(stream, stream:execute())
+
+  assert_equal(1, counters.on_command)
+  assert_equal(0, counters.callback)
+
+  assert_equal(stream, stream:append(request)) -- echo
+
+  assert_equal(stream, stream:execute())
+
+  assert_equal(1, counters.on_command)
+  assert_equal(0, counters.callback)
+
+  assert_equal(stream, stream:append(response))
+
+  assert_equal(stream, stream:execute())
+
+  assert_equal(1, counters.on_command)
+  assert_equal(1, counters.callback)
+end)
+
 it('CUSD response status 0', function()
   local request  = 'AT+CUSD=1,"*100#",15'..EOL
   local msg      = '\004\018\0040\004H\000 \0047\0040\004?\004@\004>\004A\000 \004?\004@\0048\004=\004O\004B\000,\000 \004>\0046\0048\0044\0040\0049\004B\0045\000 \004>\004B\0042\0045\004B\000 \004?\004>\000 \000S\000M\000S\000.'

@@ -930,6 +930,18 @@ function SMSMessage:date()
   return self._date or self._smsc_date
 end
 
+function SMSMessage:concat_number()
+  return self._concat_number
+end
+
+function SMSMessage:concat_reference()
+  return self._concat_reference
+end
+
+function SMSMessage:concat_count()
+  return self._concat_count
+end
+
 end
 ---------------------------------------------------------------
 
