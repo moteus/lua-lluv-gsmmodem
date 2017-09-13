@@ -1,6 +1,6 @@
 package.path = "..\\src\\lua\\?.lua;" .. package.path
 
--- pcall(require, "luacov")
+pcall(require, "luacov")
 
 local utils     = require "utils"
 local TEST_CASE = require "lunit".TEST_CASE
