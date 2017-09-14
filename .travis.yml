@@ -47,8 +47,6 @@ script:
   - cd $TRAVIS_BUILD_DIR/test
   - lunit.sh test_modem.lua
   - lunit.sh test_commander.lua
-  - ls -lah
-  - cat luacov.stats.out | grep lua
 
 before_cache:
   - cd $TRAVIS_BUILD_DIR/test && luacov-coveralls -v
