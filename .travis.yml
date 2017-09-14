@@ -42,17 +42,20 @@ before_script:
   - luarocks show luacheck         > /dev/null 2>&1 || luarocks install luacheck
 
 script:
-  - cd test
+  - cd $TRAVIS_BUILD_DIR/src/lua/lluv && luacheck .
+  - cd $TRAVIS_BUILD_DIR/test
   - lunit.sh test_modem.lua
   - lunit.sh test_commander.lua
-  - cd ../src/lua/lluv && luacheck .
-
-after_success:
-  - luacov-coveralls -v
+  - ls -lah
+  - cat luacov.stats.out | grep lua
 
 before_cache:
+  - cd $TRAVIS_BUILD_DIR/test && luacov-coveralls -v
   - luarocks remove lluv-gsmmodem
   - rm -f /home/travis/.cache/pip/log/debug.log
+
+after_success:
+  # - luacov-coveralls -v
 
 notifications:
   email:
