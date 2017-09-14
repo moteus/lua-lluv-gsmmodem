@@ -53,7 +53,7 @@ end)
 end
 
 local function on_sms(device, sms)
-  print("SMS from:", sms:number(), "Text:", sms:text())
+  print("SMS from:", sms:number(), "Text:", sms:text('cp866'))
 end
 
 local function on_call(device, ani)

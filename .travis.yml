@@ -10,18 +10,13 @@ addons:
     packages:
       - libzmq3-dev
 
-matrix:
-  include:
-    - compiler: ": Lua51"
-      env: LUA="lua 5.1"
-    - compiler: ": Lua52"
-      env: LUA="lua 5.2"
-    - compiler: ": Lua53"
-      env: LUA="lua 5.3"
-    - compiler: ": LuaJIT20"
-      env: LUA="luajit 2.0"
-    - compiler: ": LuaJIT21"
-      env: LUA="luajit 2.1"
+env:
+  matrix:
+    - LUA="lua 5.1"
+    - LUA="lua 5.2"
+    - LUA="lua 5.3"
+    - LUA="luajit 2.0"
+    - LUA="luajit 2.1"
 
 cache:
   directories:
@@ -33,18 +28,18 @@ branches:
     - master
 
 before_install:
-  - export CC=gcc
   - pip install --user hererocks
   - hererocks here -r^ --$LUA
   - export PATH=$PATH:$PWD/here/bin
-  - luarocks show lluv || bash .travis/setup_uv.sh
+  - luarocks show lluv > /dev/null 2>&1 || bash .travis/setup_uv.sh
 
 install:
   - luarocks make rockspecs/lluv-gsmmodem-scm-0.rockspec UV_DIR=$TRAVIS_BUILD_DIR/libuv
 
 before_script:
-  - luarocks show lunitx           || luarocks install lunitx
-  - luarocks show luacov-coveralls || luarocks install luacov-coveralls
+  - luarocks show lunitx           > /dev/null 2>&1 || luarocks install lunitx
+  - luarocks show cluacov          > /dev/null 2>&1 || luarocks install cluacov
+  - luarocks show luacov-coveralls > /dev/null 2>&1 || luarocks install luacov-coveralls
 
 script:
   - cd test
@@ -53,6 +48,10 @@ script:
 
 after_success:
   - luacov-coveralls -v
+
+before_cache:
+  - luarocks remove lluv-gsmmodem
+  - rm -f /home/travis/.cache/pip/log/debug.log
 
 notifications:
   email:
