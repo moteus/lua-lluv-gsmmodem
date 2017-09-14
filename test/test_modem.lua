@@ -976,8 +976,64 @@ it('wait timeout', function()
       assert_equal(2, called())
       assert_equal(self, modem)
       assert(err)
-      assert(err:name() == 'TIMEOUT')
-      assert_equal(ref, 38)
+      assert_equal('TIMEOUT', err:name())
+      assert_equal(38, ref)
+      self:close()
+    end)
+  end)
+
+  uv.run()
+
+  assert_equal(2, called(0))
+end)
+
+it('wait timeout on multipart sms', function()
+  local Stream = MakeStream{
+    {
+      'AT+CMGS=153\r\n',
+      '\r> ',
+    };
+    {
+      '0061010B917777777777F70000A0050003010301D06536FB8D2EB3D96F7499CD7EA3CB6CF61B5D66B3DFE8329BFD4697D9EC37BACC66BFD16536FB8D2EB3D96F7499CD7EA3CB6CF61B5D66B3DFE8329BFD4697D9EC37BACC66BFD16536FB8D2EB3D96F7499CD7EA3CB6CF61B5D66B3DFE8329BFD4697D9EC37BACC66BFD16536FB8D2EB3D96F7499CD7EA3CB6CF61B5D66B3DFE8329BFD4697D9\026',
+      'AT+CMGS=153\r\n+CMGS: 1,\r\n\r\nOK\r\n'
+    };
+
+    {
+      'AT+CMGS=153\r\n',
+      '\r> ',
+    };
+    {
+      '0061010B917777777777F70000A0050003010302D86F7499CD7EA3CB6CF61B5D66B3DFE8329BFD4697D9EC37BACC66BFD16536FB8D2EB3D96F7499CD7EA3CB6CF61B5D66B3DFE8329BFD4697D9EC37BACC66BFD16536FB8D2EB3D96F7499CD7EA3CB6CF61B5D66B3DFE8329BFD4697D9EC37BACC66BFD16536FB8D2EB3D96F7499CD7EA3CB6CF61B5D66B3DFE8329BFD4697D9EC37BACC66BFD1\026',
+      'AT+CMGS=153\r\n+CMGS: 2,\r\n\r\nOK\r\n'
+    };
+
+    {
+      'AT+CMGS=58\r\n',
+      '\r> ',
+    };
+    {
+      '0061010B917777777777F7000033050003010303CA6CF61B5D66B3DFE8329BFD4697D9EC37BACC66BFD16536FB8D2EB3D96F7499CD7EA3CB6CF61B\026',
+      'AT+CMGS=58\r\n+CMGS: 3,\r\n\r\nOK\r\n'
+    };
+  }
+
+  local modem = GsmModem.new(Stream)
+
+  local timeout1 = uv.timer():start(1000, function()
+    assert_equal(1, called())
+  end)
+
+  modem:open(function(self, ...)
+    self:send_sms('+77777777777', ('hello'):rep(70), {waitReport = 'any', timeout = 2000}, function(self, err, res)
+      assert_equal(2, called())
+      assert_equal(self, modem)
+      assert(err)
+      assert_equal('TIMEOUT', err:name())
+      assert_table(   res)
+      assert_equal(1, res[1])
+      assert_equal(2, res[2])
+      assert_equal(3, res[3])
+
       self:close()
     end)
   end)

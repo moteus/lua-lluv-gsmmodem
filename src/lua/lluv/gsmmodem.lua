@@ -61,7 +61,7 @@ local function DecodeSms(pdu, stat, ...)
   end
 
   if not t then
-    return nil, e or
+    return nil, e or 
       Error('EPROTO', nil, string.format("SMS Decode fail: len=%d data=%q", len, pdu))
   end
 
@@ -377,8 +377,7 @@ local function wait_timeout(self, ctx)
     self._cds_wait[ref] = nil
   end
 
-  --! @fixme pass `ref` value
-  return ctx.cb(self, Error'TIMEOUT')
+  return ctx.cb(self, Error'TIMEOUT', ctx.ref)
 end
 
 function GsmModem:_on_cds_check(typ, mode, ...) -- luacheck: ignore typ

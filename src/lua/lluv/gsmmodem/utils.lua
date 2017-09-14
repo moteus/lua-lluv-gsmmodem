@@ -18,7 +18,7 @@ local lpeg    = require "lpeg"
 local date    = require "date"
 local ut      = require "lluv.utils"
 
-local unpack = unpack or table.unpack -- luacheck: ignore unpack
+local unpack = unpack or table.unpack -- luacheck: ignore unpack 143
 
 -- This is not full GSM7 encode table but just ascii subset
 -- luacheck: push ignore 631

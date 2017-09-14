@@ -14,7 +14,7 @@ local ut     = require "lluv.utils"
 local Error  = require "lluv.gsmmodem.error".error
 local utils  = require "lluv.gsmmodem.utils"
 
-local unpack = unpack or table.unpack -- luacheck: ignore unpack
+local unpack = unpack or table.unpack -- luacheck: ignore unpack 143
 
 local pack_args   = utils.pack_args
 local split_args  = utils.split_args
