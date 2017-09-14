@@ -44,7 +44,7 @@ local MESSAGE_STATUS = {
 local function DecodeSms(pdu, stat, ...)
   if type(stat) == 'string' then
     local address = ...
-    sms = SMSMessage.new(address, pdu)
+    local sms = SMSMessage.new(address, pdu)
     sms:set_type(MESSAGE_STATUS[stat])
     return sms
   end
@@ -61,7 +61,7 @@ local function DecodeSms(pdu, stat, ...)
   end
 
   if not t then
-    return nil, e or 
+    return nil, e or
       Error('EPROTO', nil, string.format("SMS Decode fail: len=%d data=%q", len, pdu))
   end
 
@@ -105,7 +105,7 @@ local on_unexpected = function(self, line)
   self:emit('unexpected', line)
 end
 
-local function CreateSms(self, typ, mode, ...)
+local function CreateSms(self, typ, mode, ...) -- luacheck: ignore self
   local sms, err
   if mode then -- text mode
     if typ == 'DELIVER' then
@@ -126,7 +126,7 @@ local function CreateSms(self, typ, mode, ...)
   return sms, err
 end
 
-local on_recv_sms = function(self, event, ...)
+local on_recv_sms = function(self, event, ...) -- luacheck: ignore event
   local sms, err = CreateSms(self, 'DELIVER', ...)
 
   if sms then
@@ -138,7 +138,7 @@ local on_recv_sms = function(self, event, ...)
   end
 end
 
-local on_recv_status = function(self, event, ...)
+local on_recv_status = function(self, event, ...) -- luacheck: ignore event
   local sms, err = CreateSms(self, 'DELIVER-REPORT', ...)
 
   if sms then
@@ -185,12 +185,13 @@ function GsmModem:__init(...)
   local command = at.Commander(stream)
 
   -- Время для ответа от модема
-  local cmdTimeout = uv.timer():start(0, DEFAULT_COMMAND_TIMEOUT, function(timer)
+  local cmdTimeout = uv.timer():start(0, DEFAULT_COMMAND_TIMEOUT, function()
     stream:_command_done('TIMEOUT')
   end):stop()
 
   -- Посылать команды не чаще чем ...
-  -- Некоторые модемы могут вести себя неадекватно если посылать команды слишком быстро
+  -- Некоторые модемы могут вести себя неадекватно
+  -- если посылать команды слишком быстро
   local cmdSendTimer = uv.timer():start(0, DEFAULT_COMMAND_DELAY, function(timer)
     timer:stop()
     stream:next_command()
@@ -239,7 +240,7 @@ function GsmModem:configure(cb)
   return self:cmd():chain{
     function(command, next_fn) command:raw("\26", 5000, next_fn) end;
 
-    function(command, next_fn) self:at_wait(30, function(self, err, data)
+    function(command, next_fn) self:at_wait(30, function(this, err, data) -- luacheck: ignore command
       if err then return cb(this, err, 'AT', data) end
       next_fn()
     end) end;
@@ -255,7 +256,7 @@ function GsmModem:configure(cb)
     end) end;
 
     function(command, next_fn) command:SmsTextMode(false, function(this, err, mode)
-      if err then return cb(this, err, 'CMGF', data) end
+      if err then return cb(this, err, 'CMGF', mode) end
       next_fn()
     end) end;
 
@@ -274,7 +275,7 @@ function GsmModem:configure(cb)
       next_fn()
     end) end;
 
-    function(command, next_fn) command:MemoryStatus(function(this, err, mem1, mem2, mem3)
+    function(command, next_fn) command:MemoryStatus(function(this, err, mem1, mem2, mem3)  -- luacheck: ignore this err
       if mem1 then self._mem1 = mem1[1] self._memory[mem1[1]] = mem1 end
       if mem2 then self._mem2 = mem2[1] self._memory[mem2[1]] = mem2 end
       if mem3 then self._mem3 = mem3[1] self._memory[mem3[1]] = mem3 end
@@ -293,9 +294,9 @@ function GsmModem:reset(err)
 end
 
 function GsmModem:open(cb)
-  return self._device:open(function(dev, err, ...)
+  return self._device:open(function(_, err, ...)
     if not err then
-      self._device:start_read(function(dev, err, data)
+      self._device:start_read(function(_, err, data)  -- luacheck: ignore err
         if err then
           return self:emit('error', err, data)
         end
@@ -376,10 +377,11 @@ local function wait_timeout(self, ctx)
     self._cds_wait[ref] = nil
   end
 
-  return ctx.cb(self, Error'TIMEOUT', ref)
+  --! @fixme pass `ref` value
+  return ctx.cb(self, Error'TIMEOUT')
 end
 
-function GsmModem:_on_cds_check(typ, mode, ...)
+function GsmModem:_on_cds_check(typ, mode, ...) -- luacheck: ignore typ
   local ref, status, number
   if mode then
     ref, status, number = ...
@@ -409,7 +411,7 @@ end
 
 function GsmModem:_set_sms_memory(front, chain, ...)
   local cb, mem1, mem2, mem3 = pack_args(...)
-  self:cmd(front, chain):SetSmsMemory(mem1, mem2, mem3, function(self, err, u1, t1, u2, t2, u3, t3)
+  self:cmd(front, chain):SetSmsMemory(mem1, mem2, mem3, function(self, err, u1, t1, u2, t2, u3, t3) --luacheck: ignore self
     if err then return cb(self, err) end
 
     set_memory_info(self, '_mem1', mem1, u1, t1)
@@ -468,7 +470,7 @@ function GsmModem:send_sms(...)
   }
 
   if #pdus == 1 then
-    cmd:CMGS(pdus[1][2], pdus[1][1], function(self, err, ref)
+    cmd:CMGS(pdus[1][2], pdus[1][1], function(self, err, ref) --luacheck: ignore self err
       if err then return cb(self, err) end
 
       if not waitCds then return cb(self, nil, ref) end
@@ -483,7 +485,7 @@ function GsmModem:send_sms(...)
   else
     local count, res, send_err = #pdus, {}
     for i, pdu in ipairs(pdus) do
-      cmd:CMGS(pdu[2], pdu[1], function(self, err, ref)
+      cmd:CMGS(pdu[2], pdu[1], function(self, err, ref) --luacheck: ignore self err
         if err then send_err = err end
 
         if waitCds and not err then
@@ -519,7 +521,7 @@ end
 
 function GsmModem:send_ussd(...)
   local cb, number, text, opt = pack_args(...)
-  return self:cmd():CUSD(number, text, opt, function(self, err, status, msg, dcs)
+  return self:cmd():CUSD(number, text, opt, function(self, err, status, msg, dcs) --luacheck: ignore self
     if err then return cb(self, err) end
     return cb(self, nil, USSDMessage.new(msg, dcs, status))
   end)
@@ -534,7 +536,7 @@ function GsmModem:at_wait(...)
   local counter, poll_timeout = 0, 1000
   sec = sec or 60
 
-  local function on_wait(self, err, data)
+  local function on_wait(this, err, data)
     if err then
       counter = counter + 1
       if counter > sec then
@@ -564,18 +566,18 @@ function GsmModem:read_sms(...)
     del = opt and opt.delete
   end
 
-  local function do_read(self, err)
+  local function do_read(self, err) --luacheck: ignore self
     if err then return cb(self, err) end
 
     local front, chain = not not mem, not not del
 
-    self:cmd(front, chain):CMGR(index, function(self, err, pdu, stat, ...)
+    self:cmd(front, chain):CMGR(index, function(self, err, pdu, stat, ...) --luacheck: ignore self
       if err then return cb(self, err) end
 
       -- may be there no sms with such index
       if not pdu then return cb(self) end
 
-      local sms, err = DecodeSms(pdu, stat, ...)
+      local sms sms, err = DecodeSms(pdu, stat, ...)
       if not sms then return cb(self, err) end
 
       sms:set_index(index)
@@ -584,7 +586,7 @@ function GsmModem:read_sms(...)
       if mem then assert(mem == self._mem1) end
 
       if del then
-        return self:cmd(true):CMGD(index, function(self, err)
+        return self:cmd(true):CMGD(index, function(self, err) --luacheck: ignore self err
           cb(self, nil, sms, err)
         end)
       end
@@ -615,7 +617,7 @@ function GsmModem:delete_sms(...)
   end
 
   if mem then
-    self:_set_sms_memory(false, true, mem, function(self, err)
+    self:_set_sms_memory(false, true, mem, function(self, err) --luacheck: ignore self err
       if err then return cb(self, err) end
       self:cmd(true):CMGD(index, cb)
     end)
@@ -632,13 +634,13 @@ function GsmModem:each_sms(...)
 
   local mem = opt and opt.memory
 
-  local function do_each(self, err, pdus)
+  local function do_each(self, err, pdus) --luacheck: ignore self
     if err then return cb(self, err) end
     local total = #pdus
     for i = 1, total do
       local t = pdus[i]
       local index, pdu, stat, len = t[1], t[2], t[3], t[4]
-      local sms, err = DecodeSms(pdu, stat, len)
+      local sms sms, err = DecodeSms(pdu, stat, len)
       if sms then
         sms:set_index(index)
         sms:set_storage(mem or self._mem1)
@@ -649,7 +651,7 @@ function GsmModem:each_sms(...)
   end
 
   if mem then
-    self:_set_sms_memory(false, true, mem, function(self, err)
+    self:_set_sms_memory(false, true, mem, function(self, err) --luacheck: ignore self
       if err then return cb(self, err) end
       self:cmd(true):CMGL(status, do_each)
     end)
@@ -851,7 +853,7 @@ function SMSMessage:set_request_status_report(v)
   return self
 end
 
-function SMSMessage:request_status_report(v)
+function SMSMessage:request_status_report()
   return not not self._request_status_report
 end
 
