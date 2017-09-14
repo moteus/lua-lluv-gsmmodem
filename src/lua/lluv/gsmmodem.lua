@@ -61,7 +61,7 @@ local function DecodeSms(pdu, stat, ...)
   end
 
   if not t then
-    return nil, e or 
+    return nil, e or
       Error('EPROTO', nil, string.format("SMS Decode fail: len=%d data=%q", len, pdu))
   end
 
