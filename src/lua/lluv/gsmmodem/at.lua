@@ -14,12 +14,10 @@ local ut     = require "lluv.utils"
 local Error  = require "lluv.gsmmodem.error".error
 local utils  = require "lluv.gsmmodem.utils"
 
-local unpack = unpack or table.unpack
+local unpack = unpack or table.unpack -- luacheck: ignore unpack
 
 local pack_args   = utils.pack_args
 local split_args  = utils.split_args
-local split_list  = utils.split_list
-local decode_list = utils.decode_list
 
 local function dummy()end
 
@@ -64,10 +62,10 @@ local ttt = {
 }
 
 is_async_msg = function(line)
-  local info = t[line]
+  local info, typ = t[line]
   if info then return line, info end
 
-  local typ, info = string.match(line, "^(%+[^:]+):%s*(.-)%s*$")
+  typ, info = string.match(line, "^(%+[^:]+):%s*(.-)%s*$")
 
   if typ then
     if tt[typ]  then return typ, info, false end
@@ -156,7 +154,7 @@ function ATStream:on_delay(handler)
 end
 
 --- Register handler to handle command execute done.
--- 
+--
 -- You can start timer in `on_command` handler and stop it here
 --
 function ATStream:on_done(handler)
@@ -221,7 +219,7 @@ function ATStream:_emit_maybe_message(typ, info)
   if typ == true then
     if self._state.maybe_urc_typ then
       typ, info = self._state.maybe_urc_typ, self._state.maybe_urc_info
-      self._state.maybe_urc_typ, self._state.maybe_urc_info = nil
+      self._state.maybe_urc_typ, self._state.maybe_urc_info = nil -- luacheck: ignore 532
       if self._on_maybe_message then
         self._on_maybe_message(self._self, typ, info, false)
       end
@@ -230,7 +228,7 @@ function ATStream:_emit_maybe_message(typ, info)
     end
   elseif typ == false then
     if self._state.maybe_urc_typ then
-      self._state.maybe_urc_typ, self._state.maybe_urc_info = nil
+      self._state.maybe_urc_typ, self._state.maybe_urc_info = nil -- luacheck: ignore 532
       if self._on_maybe_message then
         self._on_maybe_message(self._self)
       end
@@ -277,7 +275,7 @@ function ATStream:_command_done(status, info)
 
   if t[CB_I] then
     local msg = t[RES_I] and table.concat(t[RES_I],'\n') or ''
-    t[CB_I](self._self, err, t[CMD_I], msg, status, info)
+    t[CB_I](self._self, nil, t[CMD_I], msg, status, info)
   end
 
   if t[CHAIN_I] then self:_command() end
@@ -291,14 +289,14 @@ local function execute_step(self, line)
 
   if self._state[1] == STATE_WAIT_URC_DATA then
     local typ, info = self._state.typ, self._state.info
-    self._state[1], self._state.typ, self._state.info = STATE_NONE
+    self._state[1], self._state.typ, self._state.info = STATE_NONE -- luacheck: ignore 532
     return self:_emit_message(typ, info, line)
   end
 
   local urc_typ, urc_info, maybe_urc = is_async_msg(line)
 
   if urc_typ and (not maybe_urc) then
-      -- in text mode CDS can be 
+      -- in text mode CDS can be
       --  * '+CDS: 6,46,"+77777777777", ... \r\n'
       --  * '+CDS: \r\n 6,46,"+77777777777", ... \r\n'
       -- in PDU mode it can be only '+CDS 25\r\n<PDU>\r\n'
@@ -336,15 +334,15 @@ local function execute_step(self, line)
       return self:_command_done(status, info)
     end
 
-    local r = t[RES_I]
-
     -- Assume URC can be only single line like +CFUN: ....
     -- So if preview line was maybe_urc then this was URC message
     if self:_emit_maybe_message(true) then
       -- that means that preview read line mark as mabe URC and that means it was URC
-      -- so we have to remove this line from result. 
+      -- so we have to remove this line from result.
       -- Output from port e.g. `+CFUN: 1<EOL>+CFUN: 1<EOL>+CFUN: 1<EOL>OK<EOL>`
       -- Resultset have to be exists alread
+
+      local r = assert(t[RES_I])
       assert(r[#r])
       r[#r] = nil
     end
@@ -481,7 +479,7 @@ end
 local function Decode_CMT_text(typ, msg, text)
   local args = split_args(msg)
 
-  local number, alpha, scts = unpack(args)
+  local number, alpha, scts = unpack(args)  -- luacheck: ignore alpha
   return typ, true, text, number, scts
 end
 
@@ -509,7 +507,7 @@ local function Decode_URC(mode, ...)
   end
 
   if typ == '+CDS' and #msg == 0 then
-    msg, info = info or msg
+    msg, info = info or msg -- luacheck: ignore 532 info
   end
 
   if typ == '+CMT' or typ == '+CDS' then
@@ -580,11 +578,12 @@ end
 function ATCommander:_basic_cmd(...)
   local cb, cmd, timeout = pack_args(...)
 
+  -- luacheck: push ignore 431
   self._stream:_command_impl(self._front, self._chain, cmd, timeout, function(this, err, cmd, res, status, info)
     if err then return cb(this, err) end
 
     if status ~= 'OK' then
-      local info = (status == 'ERROR') and (info == 'Error') and cmd or info
+      info = (status == 'ERROR') and (info == 'Error') and cmd or info
       return cb(this, E(status, info))
     end
 
@@ -592,6 +591,7 @@ function ATCommander:_basic_cmd(...)
 
     cb(this, nil, #res == 0 and status or res)
   end)
+  -- luacheck: pop
 
   return true
 end
@@ -607,11 +607,12 @@ function ATCommander:_basic_cmd_ex(...)
     timeout2, data = nil, timeout2
   end
 
-  self._stream:_command_ex_impl(self._front, self._chain, cmd, timeout1, prompt, timeout2, data, function(this, err, cmd, res, status, info)
+  self._stream:_command_ex_impl(self._front, self._chain, cmd, timeout1, prompt, timeout2, data,
+  function(this, err, cmd, res, status, info) -- luacheck: ignore cmd
     if err then return cb(this, err) end
 
     if status ~= 'OK' then
-      local info = (status == 'ERROR') and (info == 'Error') and cmd or info
+      info = (status == 'ERROR') and (info == 'Error') and cmd or info
       return cb(this, E(status, info))
     end
 
@@ -625,7 +626,6 @@ end
 
 function ATCommander:chain(t)
   local i = 1
-  local front = self._front
 
   local function cont()
     local f = t[i]
@@ -705,9 +705,11 @@ function ATCommander:MemoryStatus(...)
 end
 
 function ATCommander:SetSmsMemory(...)
+  -- luacheck: push ignore 532
   local cb, mem1, mem2, mem3, timeout = pack_args(...)
   if type(mem3) == 'number' then timeout, mem3 = mem3
   elseif type(mem2) == 'number' then timeout, mem3, mem2 = mem2 end
+  -- luacheck: pop
 
   local cmd
   if mem3 then     cmd = string.format('AT+CPMS="%s","%s","%s"', mem1, mem2, mem3)
@@ -790,7 +792,7 @@ end
 function ATCommander:SmsTextMode(...)
   local cb, mode, timeout = pack_args(...)
   if type(mode) == 'number' then
-    timeout, mode = mode
+    timeout, mode = mode -- luacheck: ignore 532
   end
 
   if mode == nil then
@@ -859,7 +861,9 @@ function ATCommander:CMGR(i, ...)
     -- Text mode
     if MESSAGE_STATUS[ data[1] ] then
       --! @todo decode Text mode sms
+      -- luacheck: push ignore 631
       -- message_status,address,[address_text],service_center_time_stamp[,address_type,TPDU_first_octet,protocol_identifier,data_coding_scheme,service_center_address,service_center_address_type,sms_message_body_length]<CR><LF>sms_message_body
+      -- luacheck: pop
 
       local stat, address, scts = data[1], data[2]
       if stat:sub(1, 3) == 'REC' then
@@ -870,7 +874,7 @@ function ATCommander:CMGR(i, ...)
     end
 
     -- PDU Mode
-    local index, stat, alpha, len
+    local index, stat, alpha, len -- luacheck: ignore index
     if #data >= 4 then index, stat, alpha, len = unpack(data)
     elseif #data == 3 then stat, alpha, len = unpack(data)
     elseif #data == 2 then stat, len = unpack(data)
@@ -882,6 +886,7 @@ function ATCommander:CMGR(i, ...)
 
     stat, len = tonumber(stat), tonumber(len)
 
+    --! @check pass `index` value
     cb(this, nil, pdu, stat, len, alpha)
   end)
 end
@@ -913,7 +918,7 @@ function ATCommander:CMGS(len, pdu, cb)
     data = split_args(data)
     if not data then return cb(this, E('EPROTO', nil, info)) end
 
-    ref = tonumber(data[1])
+    local ref = tonumber(data[1])
     if not ref then return cb(this, E('EPROTO', nil, info)) end
 
     cb(this, nil, ref, data[2])
@@ -948,14 +953,14 @@ function ATCommander:CMGL(...)
 
     local res = {}
 
-    for opt, pdu, eol in info:gmatch("%+CMGL:%s*(.-)%s-\n(%x*)") do
+    for opt, pdu in info:gmatch("%+CMGL:%s*(.-)%s-\n(%x*)") do
 
       local args = split_args(opt)
       if not args then
         return cb(this, Error('EPROTO', nil, info))
       end
 
-      local index, stat, alpha, len = unpack(args)
+      local index, stat, alpha, len = unpack(args) -- luacheck: ignore stat
       index, stat, len = tonumber(index), tonumber(stat), tonumber(len)
 
       if (not index) or (not len) or (not stat) then
@@ -978,7 +983,7 @@ function ATCommander:CUSD(...)
     n = n and 1 or 0
   elseif n == nil then n = 1 end
 
-  cmd = string.format('AT+CUSD=%d,"%s",%d', n, cmd, codc or 15)
+  cmd = string.format('AT+CUSD=%d,"%s",%d', n, cmd, codec or 15)
   cb = cb or dummy
   return self:_basic_cmd(cmd, function(this, err, info)
     if err then return cb(this, err, info) end
@@ -986,7 +991,7 @@ function ATCommander:CUSD(...)
     local msg = info:match("%+CUSD:%s*(.-)%s*$")
     if not msg then return cb(this, E('EPROTO', nil, info)) end
 
-    local data, m, dcs = split_args(msg)
+    local data, m, dcs = split_args(msg) -- luacheck: ignore 311
     if not data then
       -- some modems returns UCS2 directly so it really fail to split
       m, msg, dcs = msg:match('^(%d-),"(.-)",(%d+)$')
@@ -1008,7 +1013,7 @@ end
 function ATCommander:at(...)
   local cb, cmd, timeout = pack_args(...)
   if type(cmd) == 'number' then
-    timeout, cmd = cmd
+    timeout, cmd = cmd -- luacheck: ignore 532
   end
 
   cmd = 'AT' .. (cmd or '')

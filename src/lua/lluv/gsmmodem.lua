@@ -324,7 +324,7 @@ function GsmModem:close(cb)
   if self._device then
     self:reset(Error'EINTER')
     self._device:close(cb)
-    self._device, self._cmd_timer, self._snd_timer = nil
+    self._device, self._cmd_timer, self._snd_timer = nil -- luacheck: ignore 532
   end
 end
 
@@ -355,7 +355,7 @@ local function remove_wait_ref(self, ref, status)
 
   if not (ctx.progress  or next(ctx.set)) then
     if ctx.timer then ctx.timer:close() end
-    local ref, ret = ctx.ref, ctx.ret
+    local ref, ret = ctx.ref, ctx.ret -- luacheck: ignore ref
     return ctx.cb(self, nil, ref, ret[ref] or ret)
   end
 end
@@ -387,7 +387,7 @@ function GsmModem:_on_cds_check(typ, mode, ...) -- luacheck: ignore typ
     ref, status, number = ...
     status = tpdu._DecodeStatus(status)
   else
-    local pdu, len, err = ...
+    local pdu, len, err = ... -- luacheck: ignore err
     pdu, err = tpdu.Decode(pdu, 'input', len)
     if not (pdu or pdu.mr or pdu.status) then
       return self:emit('error', err)
@@ -411,7 +411,8 @@ end
 
 function GsmModem:_set_sms_memory(front, chain, ...)
   local cb, mem1, mem2, mem3 = pack_args(...)
-  self:cmd(front, chain):SetSmsMemory(mem1, mem2, mem3, function(self, err, u1, t1, u2, t2, u3, t3) --luacheck: ignore self
+  -- luacheck: push ignore self
+  self:cmd(front, chain):SetSmsMemory(mem1, mem2, mem3, function(self, err, u1, t1, u2, t2, u3, t3)
     if err then return cb(self, err) end
 
     set_memory_info(self, '_mem1', mem1, u1, t1)
@@ -420,6 +421,7 @@ function GsmModem:_set_sms_memory(front, chain, ...)
 
     cb(self, err, u1, t1, u2, t2, u3, t3)
   end)
+  -- luacheck: pop
 end
 
 function GsmModem:set_sms_memory(...)
@@ -502,7 +504,7 @@ function GsmModem:send_sms(...)
           wait_ctx.progress = nil
 
           if send_err then -- do not wait if at least one error
-            for _, ref in ipairs(res) do
+            for _, ref in ipairs(res) do -- luacheck: ignore ref
               self._cds_wait[ref] = nil
             end
             return cb(self, send_err, res)
@@ -571,7 +573,7 @@ function GsmModem:read_sms(...)
 
     local front, chain = not not mem, not not del
 
-    self:cmd(front, chain):CMGR(index, function(self, err, pdu, stat, ...) --luacheck: ignore self
+    self:cmd(front, chain):CMGR(index, function(self, err, pdu, stat, ...) --luacheck: ignore self err
       if err then return cb(self, err) end
 
       -- may be there no sms with such index
@@ -629,7 +631,7 @@ end
 function GsmModem:each_sms(...)
   local cb, status, opt = pack_args(...)
   if type(status) == 'table' then
-    opt, status = status
+    opt, status = status -- luacheck: ignore 532
   end
 
   local mem = opt and opt.memory
