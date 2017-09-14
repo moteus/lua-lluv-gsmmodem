@@ -38,6 +38,7 @@ install:
 
 before_script:
   - luarocks show lunitx           > /dev/null 2>&1 || luarocks install lunitx
+  - luarocks show cluacov          > /dev/null 2>&1 || luarocks install cluacov
   - luarocks show luacov-coveralls > /dev/null 2>&1 || luarocks install luacov-coveralls
   - luarocks show luacheck         > /dev/null 2>&1 || luarocks install luacheck
 
