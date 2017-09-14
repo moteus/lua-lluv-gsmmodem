@@ -12,10 +12,10 @@
 
 local ut = require "lluv.utils"
 
-local CMS_ERROR_INFO = {
-  [300] = [[Mobile equipment (ME) failure. Mobile equipment refers to the mobile 
-  device that communicates with the wireless network. Usually it is a mobile 
-  phone or GSM/GPRS modem. The SIM card is defined as a separate entity and 
+local CMS_ERROR_INFO = { -- luacheck: ignore
+  [300] = [[Mobile equipment (ME) failure. Mobile equipment refers to the mobile
+  device that communicates with the wireless network. Usually it is a mobile
+  phone or GSM/GPRS modem. The SIM card is defined as a separate entity and
   is not part of mobile equipment.
 ]],
   [301] = [[SMS service of mobile equipment (ME) is reserved.
@@ -25,14 +25,14 @@ local CMS_ERROR_INFO = {
   [304] = [[One or more parameter values assigned to the AT command are invalid. (For PDU mode)]],
   [305] = [[One or more parameter values assigned to the AT command are invalid. (For Text mode)]],
   [310] = [[There is no SIM card.]],
-  [311] = [[The SIM card requires a PIN to operate. The AT command +CPIN 
+  [311] = [[The SIM card requires a PIN to operate. The AT command +CPIN
   (command name in text: Enter PIN) can be used to send the PIN to the SIM card.]],
-  [312] = [[The SIM card requires a PH-SIM PIN to operate. The AT command +CPIN 
+  [312] = [[The SIM card requires a PH-SIM PIN to operate. The AT command +CPIN
   (command name in text: Enter PIN) can be used to send the PH-SIM PIN to the SIM card.]],
   [313] = [[SIM card failure.]],
   [314] = [[The SIM card is busy.]],
   [315] = [[The SIM card is wrong.]],
-  [316] = [[The SIM card requires a PUK to operate. The AT command +CPIN 
+  [316] = [[The SIM card requires a PUK to operate. The AT command +CPIN
   (command name in text: Enter PIN) can be used to send the PUK to the SIM card.]],
   [320] = [[Memory/message storage failure.]],
   [321] = [[The memory/message storage index assigned to the AT command is invalid.]],
@@ -40,13 +40,13 @@ local CMS_ERROR_INFO = {
   [330] = [[The SMS center (SMSC) address is unknown.]],
   [331] = [[No network service is available.]],
   [332] = [[Network timeout occurred.]],
-  [340] = [[There is no need to send message acknowledgement by the AT command +CNMA 
+  [340] = [[There is no need to send message acknowledgement by the AT command +CNMA
   (command name in text: New Message Acknowledgement to ME/TA).]],
   [500] = [[An unknown error occurred.]],
   [513] = [[It can be:
-  * MS loses the radio link 
+  * MS loses the radio link
   * MS does not receive the acknowledge from the network (CP_ACK)
-    about 28s after the transmission of the Short Message data (CP_DATA) 
+    about 28s after the transmission of the Short Message data (CP_DATA)
   * MS does not receive the acknowledge from the network (CP_DATA(RP_ACK))
     about 42s after the channel establishment request]],
   [514] = [[Service Center Address destination address are wrong]],
@@ -233,7 +233,7 @@ function ATError:__init(name, no, ext)
   return self
 end
 
-function ATError:cat()  return 'GSM-AT' end
+function ATError:cat()  return 'GSM-AT' end -- luacheck: ignore self
 
 function ATError:no()   return self._no    end
 

@@ -18,10 +18,12 @@ local lpeg    = require "lpeg"
 local date    = require "date"
 local ut      = require "lluv.utils"
 
-local unpack = unpack or table.unpack
+local unpack = unpack or table.unpack -- luacheck: ignore unpack
 
 -- This is not full GSM7 encode table but just ascii subset
+-- luacheck: push ignore 631
 local GSM_PAT = [=[^[ ^{}\%[~%]|@!?$_&%%#'"`,.()*+-/0123456789:;<=>ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz]*$]=]
+-- luacheck: pop
 
 local BASE_ENCODE = 'ASCII'
 local UCS2_ENCODE = 'UCS-2BE'
@@ -57,7 +59,7 @@ function IconvError:__init(no, ext)
   return self
 end
 
-function IconvError:cat()  return 'ICONV' end
+function IconvError:cat()  return 'ICONV' end -- luacheck: ignore self
 
 function IconvError:no()   return self._no    end
 
@@ -81,6 +83,8 @@ function IconvError:__tostring()
   return err
 end
 
+IconvError.KNOWN_ERRORS = ERROR_NAMES
+
 end
 
 local iconv_cache = setmetatable({},{__mode = 'v'})
@@ -89,11 +93,12 @@ iconv_encode = function (from, to, str)
   if from == to then return str end
 
   local key  = from .. ':' .. to
-  local conv = iconv_cache[ key ] 
+  local conv = iconv_cache[ key ]
   if not conv then
     local err conv, err = iconv.new(to, from)
     if not conv then
-      return nil, IconvError.new(iconv.ERROR_UNKNOWN, key)
+      err = err and IconvError.KNOWN_ERRORS[err] and err or iconv.ERROR_UNKNOWN
+      return nil, IconvError.new(err, key)
     end
   end
   iconv_cache[ key ] = conv
@@ -101,9 +106,39 @@ iconv_encode = function (from, to, str)
   local msg, err = conv:iconv(str)
   if err then err = IconvError.new(err, key) end
 
-  return msg, err 
+  return msg, err
 end
 
+end
+
+local function ts2date(d)
+  local tz  = math.abs(d.tz)
+  local htz = math.floor(tz)
+  local mtz = math.floor(
+    60 * ((tz * 100) % 100) / 100
+  )
+
+  local s = string.format("20%.2d-%.2d-%.2d %.2d:%.2d:%.2d %s%d:%.2d",
+    d.year, d.month, d.day,
+    d.hour, d.min, d.sec,
+    d.tz < 0 and '-' or '+', htz, mtz
+  )
+
+  return date(s)
+end
+
+local function date2ts(d)
+  local ts = {
+    year  = d:getyear() % 1000,
+    month = d:getmonth(),
+    day   = d:getday(),
+    hour  = d:gethours(),
+    min   = d:getminutes(),
+    sec   = d:getseconds(),
+    tz    = d:getbias() / 60,
+  }
+
+  return ts
 end
 
 local function split_len(str, len, byte)
@@ -274,15 +309,13 @@ local function DecodeUssd(msg, dcs, to)
   local decoded, lang = msg, t.lang_code
   if t.group == 1 then
     -- Spec describe only UCS2 and BIT7
-    local lang = DecodeGsm7(string.sub(msg, 1, 2))
+    lang = DecodeGsm7(string.sub(msg, 1, 2))
     if t.codec == 'UCS2' then
       decoded = DecodeUcs2(string.sub(msg, 3), to)
     elseif t.codec == 'BIT7' then
       -- <LANG><CR>text
       decoded = string.sub(DecodeGsm7(msg, to), 4)
     end
-  elseif t.codec == 'UCS2' then
-    decoded = DecodeUcs2(msg, to)
   elseif t.codec == 'UCS2' then
     decoded = DecodeUcs2(msg, to)
   elseif t.codec == 'BIT7' then
@@ -295,7 +328,7 @@ local function DecodeUssd(msg, dcs, to)
     end
   end
 
-  return decoded
+  return decoded, lang
 end
 
 local function dummy()end
@@ -316,36 +349,6 @@ local function pack_args(...)
   return cb, unpack(args, 1, n)
 end
 
-local function ts2date(d)
-  local tz  = math.abs(d.tz)
-  local htz = math.floor(tz)
-  local mtz = math.floor(
-    60 * ((tz * 100) % 100) / 100
-  )
-
-  local s = string.format("20%.2d-%.2d-%.2d %.2d:%.2d:%.2d %s%d:%.2d",
-    d.year, d.month, d.day,
-    d.hour, d.min, d.sec,
-    d.tz < 0 and '-' or '+', htz, mtz
-  )
-
-  return date(s)
-end
-
-local function date2ts(d)
-  local ts = {
-    year  = d:getyear() % 1000,
-    month = d:getmonth(),
-    day   = d:getday(),
-    hour  = d:gethours(),
-    min   = d:getminutes(),
-    sec   = d:getseconds(),
-    tz    = d:getbias() / 60,
-  }
-
-  return ts
-end
-
 local function ocall(fn, ...)
   if fn then return fn(...) end
 end
@@ -364,7 +367,7 @@ local split_args do
     local any, eos = P(1), P(-1)
 
     local nonescaped = C((any - (nl + P(quot) + P(sep) + eos))^0)
-    local escaped = 
+    local escaped =
       sp * P(quot) *
         Cs(
           ((any - P(quot)) + (P(quot) * P(quot)) / quot)^0
