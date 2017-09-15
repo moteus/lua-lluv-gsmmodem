@@ -75,7 +75,7 @@ end
 
 end
 
-local is_final_msg do
+local is_final_msg, is_final_err do
 
 local t = {
   OK                      = "Success",
@@ -93,6 +93,10 @@ is_final_msg = function (line)
 
   info = line:match('^%+CMS ERROR:%s*(.-)%s*$')
   if info then return "+CMS ERROR", info end
+end
+
+is_final_err = function(info)
+  return info ~= 'OK'
 end
 
 end
@@ -330,7 +334,11 @@ local function execute_step(self, line)
     local status, info = is_final_msg(line)
 
     if status then -- command done
-      self:_emit_maybe_message(false)
+      -- if it is error response then there should not be error arg befor.
+      -- so if there was maybe_urc message then it was URC
+      -- e.g. we send `AT+CFUN=?` and got `+CFUN: 1<EOL>OK<EOL><EOL>ERROR<EOL>`
+      -- In this case `+CFUN` is URC and `ERROR` is response
+      self:_emit_maybe_message(is_final_err(status))
       return self:_command_done(status, info)
     end
 

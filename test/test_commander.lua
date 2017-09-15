@@ -1385,6 +1385,112 @@ it('double CFUN with same command', function()
   assert_equal(0, counters.on_unexpected)
 end)
 
+it('CFUN URC-Response', function()
+  stream:on_command(function(self, command)
+    counters'on_command'()
+    assert_equal('AT+CFUN=?'..EOL, command)
+  end)
+
+  assert_equal(0, counters.callback     )
+  assert_equal(0, counters.on_command   )
+  assert_equal(0, counters.on_message   )
+  assert_equal(0, counters.on_unexpected)
+
+  assert_true(command:at('+CFUN=?', function(self, err, res)
+    counters'callback'()
+    assert_nil(err)
+    assert_equal('+CFUN: 1', res)
+  end))
+
+  assert_equal(0, counters.callback     )
+  assert_equal(1, counters.on_command   )
+  assert_equal(0, counters.on_message   )
+  assert_equal(0, counters.on_unexpected)
+
+  stream:on_message(function(self, urc, info)
+    counters'on_message'()
+    assert_equal('+CFUN', urc)
+    assert_equal('2', info)
+  end)
+
+  stream:on_unexpected(function(self, urc, info)
+    counters'on_unexpected'()
+  end)
+
+  assert_equal(stream, stream:append('+CFUN: 1'..EOL)) -- response args
+  assert_equal(stream, stream:execute())
+
+  assert_equal(0, counters.callback     )
+  assert_equal(1, counters.on_command   )
+  assert_equal(0, counters.on_message   )
+  assert_equal(0, counters.on_unexpected)
+
+  assert_equal(stream, stream:append(OK)) -- response end marker
+  assert_equal(stream, stream:execute())
+
+  assert_equal(1, counters.callback     )
+  assert_equal(1, counters.on_command   )
+  assert_equal(0, counters.on_message   )
+  assert_equal(0, counters.on_unexpected)
+
+  assert_equal(stream, stream:append('+CFUN: 2'..EOL)) -- URC
+  assert_equal(stream, stream:execute())
+
+  assert_equal(1, counters.callback     )
+  assert_equal(1, counters.on_command   )
+  assert_equal(1, counters.on_message   )
+  assert_equal(0, counters.on_unexpected)
+end)
+
+it('CFUN URC-Response(fail)', function()
+  stream:on_command(function(self, command)
+    counters'on_command'()
+    assert_equal('AT+CFUN=?'..EOL, command)
+  end)
+
+  assert_equal(0, counters.callback     )
+  assert_equal(0, counters.on_command   )
+  assert_equal(0, counters.on_message   )
+  assert_equal(0, counters.on_unexpected)
+
+  assert_true(command:at('+CFUN=?', function(self, err, res)
+    counters'callback'()
+    assert(err)
+    assert_nil(res)
+  end))
+
+  assert_equal(0, counters.callback     )
+  assert_equal(1, counters.on_command   )
+  assert_equal(0, counters.on_message   )
+  assert_equal(0, counters.on_unexpected)
+
+  stream:on_message(function(self, urc, info)
+    counters'on_message'()
+    assert_equal('+CFUN', urc)
+    assert_equal('2', info)
+  end)
+
+  stream:on_unexpected(function(self, urc, info)
+    counters'on_unexpected'()
+  end)
+
+  assert_equal(stream, stream:append('+CFUN: 2'..EOL)) -- URC
+  assert_equal(stream, stream:execute())
+
+  assert_equal(0, counters.callback     )
+  assert_equal(1, counters.on_command   )
+  assert_equal(0, counters.on_message   )
+  assert_equal(0, counters.on_unexpected)
+
+  assert_equal(stream, stream:append(ERROR)) -- response end marker
+  assert_equal(stream, stream:execute())
+
+  assert_equal(1, counters.callback     )
+  assert_equal(1, counters.on_command   )
+  assert_equal(1, counters.on_message   )
+  assert_equal(0, counters.on_unexpected)
+end)
+
 end
 
 local _ENV = TEST_CASE'--tmp--' if true then
