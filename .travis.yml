@@ -43,10 +43,10 @@ before_script:
   - luarocks show luacheck         > /dev/null 2>&1 || luarocks install luacheck
 
 script:
-  - cd $TRAVIS_BUILD_DIR/src/lua/lluv && luacheck .
   - cd $TRAVIS_BUILD_DIR/test
   - lunit.sh test_modem.lua
   - lunit.sh test_commander.lua
+  - cd $TRAVIS_BUILD_DIR/src/lua/lluv && luacheck .
 
 before_cache:
   - cd $TRAVIS_BUILD_DIR/test && luacov-coveralls -v
