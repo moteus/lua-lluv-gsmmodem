@@ -71,6 +71,7 @@ end
 
 ---------------------------------------------------------------
 local GsmModem = ut.class(EventEmitter) do
+local super = ut.class.super(GsmModem)
 
 local on_command = function(self, cmd, timeout)
   if self._device then
@@ -164,7 +165,7 @@ local function is_rs232_device(t)
 end
 
 function GsmModem:__init(...)
-  self.__base.__init(self, {wildcard = true, delimiter = '::'})
+  self = super(self, '__init', {wildcard = true, delimiter = '::'})
 
   local device, opt
   if is_rs232_device(...) then
@@ -730,7 +731,7 @@ function SMSMessage:decode_pdu(pdu, state)
   self._index             = nil                -- For saved SMS: location of SMS in memory.
   self._state             = nil                -- For saved SMS: Status (read/unread/...) of SMS message.
 
-  local concatUdh = find_udh(pdu.udh, 0x00, 0x80)
+  local concatUdh = find_udh(pdu.udh, 0x00, 0x08)
   if concatUdh and concatUdh.cnt > 1 then
     self._concat_number    = concatUdh.no
     self._concat_reference = concatUdh.ref
