@@ -2,7 +2,7 @@
 --
 --  Author: Alexey Melnichuk <alexeymelnichuck@gmail.com>
 --
---  Copyright (C) 2015-2016 Alexey Melnichuk <alexeymelnichuck@gmail.com>
+--  Copyright (C) 2015-2017 Alexey Melnichuk <alexeymelnichuck@gmail.com>
 --
 --  Licensed according to the included 'LICENSE' document
 --
@@ -18,6 +18,10 @@ local uv           = require "lluv"
 local ut           = require "lluv.utils"
 local tpdu         = require "tpdu"
 uv.rs232           = require "lluv.rs232"
+
+local _NAME      = "lluv-gsmmodem"
+local _VERSION   = "0.1.0-dev"
+local _COPYRIGHT = "Copyright (C) 2015-2017 Alexey Melnichuk"
 
 local pack_args = utils.pack_args
 local ts2date   = utils.ts2date
@@ -983,9 +987,9 @@ end
 ---------------------------------------------------------------
 
 return {
-  _NAME      = "lluv-gsmmodem";
-  _VERSION   = "0.1.0-dev";
-  _COPYRIGHT = "Copyright (C) 2015-2016 Alexey Melnichuk";
+  _NAME      = _NAME;
+  _VERSION   = _VERSION;
+  _COPYRIGHT = _COPYRIGHT;
   _LICENSE   = "MIT";
 
   new        = GsmModem.new;
